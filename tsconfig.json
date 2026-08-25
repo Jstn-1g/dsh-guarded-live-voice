@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023", "DOM"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "useUnknownInCatchVariables": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "types": ["node", "vitest/globals"],
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.mjs", "tsdown.config.ts", "vitest.config.ts"]
+}
