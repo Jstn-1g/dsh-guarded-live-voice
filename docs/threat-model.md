@@ -24,6 +24,16 @@
   handshake order.
 - Tool escalation: one bounded proposal schema with `authority: none`.
 
+## Added in milestone-three groundwork
+
+The internal provider handshake binds the created and updated session identity,
+requires the requested allowlisted model, and confirms the effective text-only,
+manual-turn configuration. Its transport also confines the destination, bounds
+credential and control-message bytes, disables redirects and compression,
+exposes only an opaque close lease, and cleans up on cancellation, timeout,
+protocol failure, provider closure, and local close. It is not exported or wired
+into the registered plugin.
+
 ## Deferred with the feature
 
 Audio framing, rate/backpressure limits, provider cancellation, browser CSP

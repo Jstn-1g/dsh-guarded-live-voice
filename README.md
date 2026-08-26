@@ -1,8 +1,7 @@
 # dsh-guarded-live-voice
 
 A guarded DeepSeek Harness voice foundation with an exact-session Host boundary
-and a lazy browser disclosure UI. Live microphone, audio, and provider transport
-remain disabled.
+and a lazy browser disclosure UI. Live microphone and audio remain disabled.
 
 ## Current status
 
@@ -23,10 +22,19 @@ boundary:
   cleanup; and
 - bounded proposal parsing with no execution authority.
 
-The current build does not request microphone access, transmit audio or text,
-open a Qwen provider connection, perform transcription or playback, or insert a
-proposal into the composer. Binary WebSocket frames remain rejected. Version
-0.2.0 is a development milestone, not a marketplace-ready voice product.
+Milestone three groundwork adds an internal, configuration-only Qwen session
+transport with deterministic fake-provider coverage. It can send only one fixed
+text-only, manual-turn configuration event and exposes no audio, transcript,
+instruction, tool, DSH context, raw socket, or send capability. The provider
+must confirm the exact requested model, session identity, modalities, and turn
+detection before the transport reports readiness.
+
+The registered plugin and installed package do not request microphone access,
+transmit audio or text, open a Qwen provider connection, perform transcription
+or playback, or insert a proposal into the composer. The internal transport is
+not exported from the package root and is not called by `apply`. Binary
+WebSocket frames remain rejected. Version 0.2.0 is a development milestone, not
+a marketplace-ready voice product.
 
 The disclosure flow is user-visible, but it is not cryptographic proof that a
 human accepted it. The one-shot challenge proves control of that local client
@@ -36,12 +44,13 @@ a human or resist a malicious same-user local process.
 
 ## Safety boundary
 
-Milestone two sends no data to Qwen because it opens no provider connection. A
-future audio milestone is designed to exclude DSH history, files, workspace
-instructions, memory, and project context. Its provider output may create only
-bounded proposal data for the exact bound session. Composer integration is not
-implemented yet; when added, it must fill the ordinary draft without submitting
-a message, calling a tool, writing a custom session event, or executing work.
+The registered plugin sends no data to Qwen because it opens no provider
+connection. A future audio milestone is designed to exclude DSH history, files,
+workspace instructions, memory, and project context. Its provider output may
+create only bounded proposal data for the exact bound session. Composer
+integration is not implemented yet; when added, it must fill the ordinary draft
+without submitting a message, calling a tool, writing a custom session event, or
+executing work.
 
 ## Development
 
@@ -73,8 +82,11 @@ need an Alibaba Cloud Model Studio workspace id before provider authorization:
     maxConnections: 8
 ```
 
-After accepted disclosure, this milestone validates the allowlisted endpoint
-and credential availability only; it does not connect to Qwen.
+After accepted disclosure, the registered plugin validates the allowlisted
+endpoint and credential availability only; it does not connect to Qwen. The
+internal configuration-only transport will remain outside the public package API
+until it is composed behind the same exact authority and consumed-consent
+boundary.
 
 Configure the credential through DSH's credential provider. Never put a secret
 value in `cordis.patch.yml`, browser storage, an issue, or a log.

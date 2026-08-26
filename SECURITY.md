@@ -24,7 +24,12 @@ private transcripts, or private workspace content in a public issue.
   boundary.
 - Invalid, oversized, stale, ambiguous, or out-of-order input fails closed.
 
-The current milestone does not stream audio or connect to a live provider.
+The registered plugin does not stream audio or connect to a live provider. The
+source tree contains an internal configuration-only transport used by
+deterministic fake-provider tests. It is not exported from the package root, is
+not called by `apply`, exposes no application-data send capability, and must be
+composed behind the exact authority and consumed-consent boundary before any
+public provider path is enabled.
 
 ## Known limitation
 
