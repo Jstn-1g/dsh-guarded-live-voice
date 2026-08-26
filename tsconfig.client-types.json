@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.client.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": false,
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src/client/**/*.ts",
+    "src/client/**/*.tsx",
+    "src/shared/boot.ts",
+    "src/shared/errors.ts",
+    "src/shared/wire.ts",
+    "src/css-modules.d.ts"
+  ]
+}

@@ -1,4 +1,5 @@
 import { GuardedVoiceError } from '../shared/errors.js'
+import { isValidWireId } from '../shared/wire.js'
 
 export interface LiveSessionSource {
   get(sessionId: string): unknown | undefined
@@ -47,8 +48,12 @@ export class AuthorityGuard {
     if (workspace === undefined) {
       throw new GuardedVoiceError('workspace-not-found', 'the session is not attached to a workspace')
     }
+    const workspaceId = String(workspace.id)
+    if (!isValidWireId(workspaceId)) {
+      throw new GuardedVoiceError('invalid-state', 'the workspace identifier is not safe for the browser protocol')
+    }
     return {
-      binding: { sessionId, workspaceId: String(workspace.id) },
+      binding: { sessionId, workspaceId },
       sessionIdentity,
     }
   }
@@ -60,7 +65,8 @@ export class AuthorityGuard {
     const matches = this.workspaces.list().filter(workspace =>
       workspace.sessionIds.includes(lease.binding.sessionId),
     )
-    if (matches.length !== 1 || String(matches[0]?.id) !== lease.binding.workspaceId) {
+    const workspaceId = String(matches[0]?.id)
+    if (matches.length !== 1 || !isValidWireId(workspaceId) || workspaceId !== lease.binding.workspaceId) {
       throw new GuardedVoiceError('authority-changed', 'the bound workspace membership changed')
     }
     return lease.binding

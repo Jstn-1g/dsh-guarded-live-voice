@@ -1,40 +1,47 @@
 # dsh-guarded-live-voice
 
-The host-side protocol and authority foundation for a planned DeepSeek Harness
-realtime voice plugin with a proposal-only composer handoff.
+A guarded DeepSeek Harness voice foundation with an exact-session Host boundary
+and a lazy browser disclosure UI. Live microphone, audio, and provider transport
+remain disabled.
 
 ## Current status
 
-Milestone one implements and tests the protocol and authority boundary:
+Milestone two adds the browser-side consent surface to the milestone-one Host
+boundary:
 
-- a loopback socket boundary, same-origin checks, explicit host allowlisting,
-  and a bounded connection count;
+- a lazy DSH browser module with composer-control and disclosure-panel slots;
+- structured Host-to-browser boot data containing only the non-secret WebSocket
+  route;
 - exact live-session and workspace binding, including id-reuse detection;
-- short-lived, one-shot disclosure-acceptance challenges bound to that
-  connection, with expiry cleanup;
-- credential resolution only after client-attested disclosure acceptance;
-- documented Qwen `session.created` -> `session.update` ->
-  `session.updated` handshake enforcement;
-- bounded, fail-closed `prepare_work_instruction` proposal parsing; and
-- deterministic cleanup on connection or DSH session disposal.
+- a visible disclosure of destination, exported context, execution authority,
+  unknown provider retention, session, workspace, and expiry;
+- an explicit button gesture as the included UI path for consuming the hidden,
+  expiring, one-shot challenge;
+- credential resolution only after that user-visible client-attested acceptance;
+- loopback, same-origin, trusted-Host, payload, and connection-count fences;
+- fail-closed protocol parsing and deterministic socket, timer, and session
+  cleanup; and
+- bounded proposal parsing with no execution authority.
 
-Microphone capture, provider audio streaming, the Harness lazy browser module,
-browser controls, and live provider validation are **not implemented yet**.
-No `dsh.client` module is declared, and binary WebSocket frames are rejected.
-Version 0.1.0 is therefore a development milestone, not a marketplace-ready
-voice product.
+The current build does not request microphone access, transmit audio or text,
+open a Qwen provider connection, perform transcription or playback, or insert a
+proposal into the composer. Binary WebSocket frames remain rejected. Version
+0.2.0 is a development milestone, not a marketplace-ready voice product.
 
-Milestone one records only a client-attested acceptance of the disclosure. It
-does not claim to prove that a human saw or accepted it. A future browser UI
-must add an authenticated, user-visible capability before audio is enabled.
+The disclosure flow is user-visible, but it is not cryptographic proof that a
+human accepted it. The one-shot challenge proves control of that local client
+connection only. Loopback, Host, Origin, and `Sec-Fetch-Site` checks mitigate
+remote access, DNS rebinding, and cross-site requests; they do not authenticate
+a human or resist a malicious same-user local process.
 
 ## Safety boundary
 
-The planned first release sends no DSH history, files, workspace instructions,
-memory, or project context to the voice provider. Provider output may create a
-bounded proposal for the exact bound session. It will only fill the ordinary
-DSH composer draft; it will not submit a message, call a tool, write a custom
-session event, or execute work.
+Milestone two sends no data to Qwen because it opens no provider connection. A
+future audio milestone is designed to exclude DSH history, files, workspace
+instructions, memory, and project context. Its provider output may create only
+bounded proposal data for the exact bound session. Composer integration is not
+implemented yet; when added, it must fill the ordinary draft without submitting
+a message, calling a tool, writing a custom session event, or executing work.
 
 ## Development
 
@@ -45,10 +52,11 @@ pnpm install
 pnpm check
 ```
 
-`pnpm check` runs strict TypeScript checking, deterministic tests, the host
-build, package linting, and a dry-run package-content check.
+`pnpm check` runs strict Host and browser TypeScript checking, deterministic
+tests, Host and browser builds, package linting, browser-bundle materialization,
+and a dry-run package-content check.
 
-## Planned configuration
+## Development configuration
 
 The bundle inserts a `guarded-live-voice` Cordis row. A profile override will
 need an Alibaba Cloud Model Studio workspace id before provider authorization:
@@ -64,6 +72,9 @@ need an Alibaba Cloud Model Studio workspace id before provider authorization:
     trustedHosts: localhost,127.0.0.1,[::1]
     maxConnections: 8
 ```
+
+After accepted disclosure, this milestone validates the allowlisted endpoint
+and credential availability only; it does not connect to Qwen.
 
 Configure the credential through DSH's credential provider. Never put a secret
 value in `cordis.patch.yml`, browser storage, an issue, or a log.

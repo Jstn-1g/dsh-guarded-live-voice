@@ -9,9 +9,10 @@
     "exactOptionalPropertyTypes": true,
     "useUnknownInCatchVariables": true,
     "verbatimModuleSyntax": true,
+    "jsx": "react-jsx",
     "skipLibCheck": true,
     "types": ["node", "vitest/globals"],
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.mjs", "tsdown.config.ts", "vitest.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "scripts/**/*.mjs", "tsdown.config.ts", "vitest.config.ts"]
 }

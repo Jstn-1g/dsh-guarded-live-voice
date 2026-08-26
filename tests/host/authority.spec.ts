@@ -34,6 +34,17 @@ describe('AuthorityGuard', () => {
     expect(() => guard.bind('s1')).toThrow(/more than one/u)
   })
 
+  it.each([
+    ' workspace',
+    'workspace ',
+    'work\nspace',
+    'w'.repeat(257),
+  ])('rejects a workspace identifier that cannot cross the browser protocol %#', id => {
+    const { guard, workspaces } = fixture()
+    workspaces[0] = { id, sessionIds: ['s1'] }
+    expect(() => guard.bind('s1')).toThrow(/not safe for the browser protocol/u)
+  })
+
   it('detects session-id reuse and workspace reassignment', () => {
     const { guard, sessions, workspaces } = fixture()
     const lease = guard.bind('s1')
@@ -43,5 +54,9 @@ describe('AuthorityGuard', () => {
     const second = guard.bind('s1')
     workspaces[0] = { id: 'w2', sessionIds: ['s1'] }
     expect(() => guard.revalidate(second)).toThrow(/membership changed/u)
+
+    const third = guard.bind('s1')
+    workspaces[0] = { id: 'unsafe\u0000workspace', sessionIds: ['s1'] }
+    expect(() => guard.revalidate(third)).toThrow(/membership changed/u)
   })
 })

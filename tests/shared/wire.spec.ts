@@ -3,10 +3,19 @@ import {
   MAX_CONTROL_BYTES,
   WIRE_VERSION,
   encodeServerControl,
+  isValidWireId,
   parseClientControl,
+  parseServerControl,
 } from '../../src/shared/wire.js'
 
 describe('wire controls', () => {
+  it('shares one exact identifier rule between Host producers and browser consumers', () => {
+    expect(isValidWireId('session-1')).toBe(true)
+    for (const value of ['', ' session', 'session ', 'session\nline', 's'.repeat(257)]) {
+      expect(isValidWireId(value)).toBe(false)
+    }
+  })
+
   it('accepts only the three exact version-one client controls', () => {
     expect(parseClientControl('{"v":1,"type":"bind","sessionId":"session-1"}')).toEqual({
       v: WIRE_VERSION,
@@ -40,5 +49,57 @@ describe('wire controls', () => {
 
   it('serializes only the supplied safe server event', () => {
     expect(encodeServerControl({ v: 1, type: 'stopped' })).toBe('{"v":1,"type":"stopped"}')
+  })
+
+  it('parses the exact disclosure and ready bindings returned by the Host', () => {
+    const consent = {
+      v: 1,
+      type: 'consent.required',
+      challenge: 'a'.repeat(43),
+      expiresAt: 1_900_000_000_000,
+      sessionId: 'session-1',
+      workspaceId: 'workspace-1',
+      provider: 'qwen',
+      disclosure: {
+        audioDestination: 'Alibaba Cloud Qwen realtime API',
+        exportedContext: 'none',
+        executionAuthority: 'none',
+        providerRetention: 'not specified for Qwen realtime audio',
+        currentMilestone: 'no microphone access or audio transmission',
+      },
+    }
+    expect(parseServerControl(JSON.stringify(consent))).toEqual(consent)
+    expect(parseServerControl(JSON.stringify({
+      v: 1,
+      type: 'ready',
+      sessionId: 'session-1',
+      workspaceId: 'workspace-1',
+      provider: 'qwen',
+      model: 'qwen-audio-3.0-realtime-plus',
+      authority: 'proposal-only',
+    }))).toMatchObject({ type: 'ready', sessionId: 'session-1', workspaceId: 'workspace-1' })
+    expect(parseServerControl('{"v":1,"type":"stopped"}')).toEqual({ v: 1, type: 'stopped' })
+    expect(parseServerControl('{"v":1,"type":"error","code":"closed","message":"safe message"}'))
+      .toEqual({ v: 1, type: 'error', code: 'closed', message: 'safe message' })
+  })
+
+  it.each([
+    'not-json',
+    '[]',
+    '{"v":2,"type":"stopped"}',
+    '{"v":1,"type":"stopped","extra":true}',
+    '{"v":1,"type":"error","code":" bad","message":"message"}',
+    '{"v":1,"type":"error","code":"bad","message":"line\\nbreak"}',
+    '{"v":1,"type":"ready","sessionId":"s","workspaceId":"w","provider":"qwen","model":" bad","authority":"proposal-only"}',
+    '{"v":1,"type":"ready","sessionId":"s","workspaceId":"w","provider":"other","model":"qwen-audio-3.0-realtime-plus","authority":"proposal-only"}',
+    '{"v":1,"type":"consent.required","challenge":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expiresAt":0,"sessionId":"s","workspaceId":"w","provider":"qwen","disclosure":{}}',
+  ])('rejects malformed server event %s', (raw) => {
+    expect(() => parseServerControl(raw)).toThrow(/server|event|frame/u)
+  })
+
+  it('applies the same UTF-8 byte ceiling to server events', () => {
+    const message = '😀'.repeat(MAX_CONTROL_BYTES)
+    expect(() => parseServerControl(JSON.stringify({ v: 1, type: 'error', code: 'x', message })))
+      .toThrow(/byte limit/u)
   })
 })
