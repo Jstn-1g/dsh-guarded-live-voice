@@ -57,7 +57,8 @@ export function assessUpgradeRequest(
   trustedHosts: readonly string[],
 ): UpgradeAssessment {
   // Host and Origin are client-controlled. The peer address is the milestone-
-  // one authorization floor, preventing a remote raw client from spoofing both.
+  // one network-exposure floor, preventing a remote raw client from spoofing
+  // both. It is not user or browser authentication.
   if (!isLoopbackAddress(request.remoteAddress)) {
     return { ok: false, status: 403, reason: 'guarded voice is loopback-only' }
   }

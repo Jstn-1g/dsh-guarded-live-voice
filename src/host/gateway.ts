@@ -166,11 +166,15 @@ export class GuardedVoiceGateway {
         type: 'consent.required',
         challenge: begun.challenge,
         expiresAt: begun.expiresAt,
+        sessionId: begun.binding.sessionId,
+        workspaceId: begun.binding.workspaceId,
         provider: 'qwen',
         disclosure: {
           audioDestination: 'Alibaba Cloud Qwen realtime API',
           exportedContext: 'none',
           executionAuthority: 'none',
+          providerRetention: 'not specified for Qwen realtime audio',
+          currentMilestone: 'no microphone access or audio transmission',
         },
       })
       return

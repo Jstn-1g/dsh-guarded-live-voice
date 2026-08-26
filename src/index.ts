@@ -5,6 +5,7 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-workspace'
 import { AuthorityGuard } from './host/authority.js'
+import { guardedVoiceClientBootInjection } from './host/boot.js'
 import { assertTrustedHosts } from './host/carrier.js'
 import { ConsentChallenges } from './host/consent.js'
 import { GuardedVoiceGateway } from './host/gateway.js'
@@ -15,6 +16,7 @@ import {
   type QwenRealtimeModel,
 } from './host/qwen.js'
 import { VoiceSessionManager } from './host/session-manager.js'
+import { CLIENT_BOOT_VERSION, parseGuardedVoiceClientBoot } from './shared/boot.js'
 import { GuardedVoiceError } from './shared/errors.js'
 
 export {
@@ -23,6 +25,7 @@ export {
   type PublicAuthorityBinding,
 } from './host/authority.js'
 export { assessUpgradeRequest, assertTrustedHosts } from './host/carrier.js'
+export { guardedVoiceClientBootInjection } from './host/boot.js'
 export { ConsentChallenges, type ConsentSubject } from './host/consent.js'
 export {
   DEFAULT_QWEN_REALTIME_MODEL,
@@ -46,9 +49,16 @@ export {
   WIRE_VERSION,
   encodeServerControl,
   parseClientControl,
+  parseServerControl,
   type ClientControl,
   type ServerControl,
 } from './shared/wire.js'
+export {
+  CLIENT_BOOT_GLOBAL,
+  CLIENT_BOOT_VERSION,
+  parseGuardedVoiceClientBoot,
+  type GuardedVoiceClientBoot,
+} from './shared/boot.js'
 
 export interface Config {
   /** DSH credential reference, never a credential value. */
@@ -98,12 +108,10 @@ function parseTrustedHosts(value: string): string[] {
 }
 
 function assertRoute(route: string): void {
-  if (!/^\/[A-Za-z0-9._~-]+$/u.test(route)) {
-    throw new TypeError('guarded voice route must be one absolute path segment')
-  }
+  parseGuardedVoiceClientBoot({ v: CLIENT_BOOT_VERSION, route })
 }
 
-/** Register the guarded JSON binding/disclosure carrier. Audio remains disabled in milestone one. */
+/** Register the guarded Host/browser disclosure carrier. Audio remains disabled in milestone two. */
 export function apply(ctx: Context, input?: Config): void {
   const config = resolvedConfig(input)
   assertRoute(config.route)
@@ -146,6 +154,9 @@ export function apply(ctx: Context, input?: Config): void {
     logger: { warn: error => { ctx.logger.warn(error) } },
   })
 
+  ctx.on('webserver/index-inject', (table) => {
+    table.push(guardedVoiceClientBootInjection(config.route))
+  })
   ctx.effect(() => ctx.webServer.registerUpgrade({
     path: config.route,
     handler: (request, socket, head) => { gateway.handleUpgrade(request, socket, head) },

@@ -80,10 +80,14 @@ describe('GuardedVoiceGateway', () => {
     socket.send('{"v":1,"type":"bind","sessionId":"s1"}')
     const consent = await disclosure
     expect(consent.type).toBe('consent.required')
+    expect(consent.sessionId).toBe('s1')
+    expect(consent.workspaceId).toBe('w1')
     expect(consent.disclosure).toEqual({
       audioDestination: 'Alibaba Cloud Qwen realtime API',
       exportedContext: 'none',
       executionAuthority: 'none',
+      providerRetention: 'not specified for Qwen realtime audio',
+      currentMilestone: 'no microphone access or audio transmission',
     })
     expect(authorize).not.toHaveBeenCalled()
 
