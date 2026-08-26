@@ -4,6 +4,20 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { runInNewContext } from 'node:vm'
 
+const hostExports = await import(new URL('../lib/index.js', import.meta.url).href)
+for (const internalName of [
+  'DEFAULT_QWEN_READY_TIMEOUT_MS',
+  'MAX_QWEN_CREDENTIAL_BYTES',
+  'MAX_QWEN_READY_TIMEOUT_MS',
+  'openQwenSession',
+]) {
+  assert.equal(
+    Object.hasOwn(hostExports, internalName),
+    false,
+    `host package root must not expose internal provider transport export ${internalName}`,
+  )
+}
+
 const clientArtifact = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')
 assert.doesNotMatch(clientArtifact, /[A-Za-z]:[\\/]/u, 'client artifact must not expose an absolute Windows path')
 const packageRoot = fileURLToPath(new URL('..', import.meta.url)).replace(/[\\/]$/u, '')

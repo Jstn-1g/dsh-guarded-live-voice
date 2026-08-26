@@ -1,8 +1,15 @@
 # Privacy boundary
 
-Milestone two requests no microphone permission, sends no audio or text, and
-opens no provider connection. After accepted disclosure, it checks only the
-Host-side provider configuration and credential availability.
+The registered plugin requests no microphone permission, sends no audio or
+text, and opens no provider connection. After accepted disclosure, it checks
+only the Host-side provider configuration and credential availability.
+
+The source tree includes an internal configuration-only transport that is not
+exported from the package root or called by `apply`. Its default dialer could
+open an authenticated Qwen session only if repository code explicitly invokes
+it; current verification uses a deterministic local fake and no live
+credential. The transport can send only one fixed text-only/manual-turn update
+and exposes no application-data send capability.
 
 The planned provider request contains only a static guard prompt and live audio
 or text the user deliberately supplies after explicit disclosure acceptance. It

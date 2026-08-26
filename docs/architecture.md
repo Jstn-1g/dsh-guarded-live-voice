@@ -1,6 +1,6 @@
 # Architecture
 
-Milestone two has an ordered Host/browser control path:
+The current design has an ordered Host/browser control path:
 
 1. The Host publishes only a versioned, non-secret WebSocket route through
    DSH's structured index-injection table.
@@ -19,12 +19,18 @@ Milestone two has an ordered Host/browser control path:
    exact disclosure and binding, and sends acceptance only after the disclosure
    button is pressed.
 8. `session-manager` consumes the challenge once, revalidates authority, and
-   permits the Host to validate provider configuration and credential
-   availability.
-9. `qwen` validates the allowlisted endpoint and models the documented
-   handshake order; milestone two does not open that provider connection.
-10. `proposal` can parse bounded non-executable proposal data, but no
+   permits the Host to validate credential availability and the allowlisted
+   `qwen` endpoint. The registered runtime stops here.
+9. The internal `qwen` handshake validates provider-event bounds, documented
+   order, exact session identity, requested model, and effective configuration.
+10. The internal `qwen-transport` can establish a configuration-only session,
+    send one fixed text-only/manual-turn update, and return only an opaque close
+    lease. It is not exported from the package root or called by `apply`.
+11. `proposal` can parse bounded non-executable proposal data, but no
     provider-to-composer integration exists yet.
+
+Steps 9 through 11 are internal, fake-provider-tested groundwork and do not
+create a public provider or composer path.
 
 The carrier accepts only versioned JSON control frames. Binary audio remains
 rejected until microphone capture, backpressure, provider streaming,

@@ -1,6 +1,7 @@
 # Conformance gates
 
-Marketplace or release submission is blocked until all of these are proven:
+Marketplace or production-ready release submission is blocked until all of
+these are proven:
 
 - host, origin, payload, and session/workspace rejection tests pass;
 - no credential resolution or provider connection occurs before exact,

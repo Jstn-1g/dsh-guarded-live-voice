@@ -29,11 +29,13 @@ export { guardedVoiceClientBootInjection } from './host/boot.js'
 export { ConsentChallenges, type ConsentSubject } from './host/consent.js'
 export {
   DEFAULT_QWEN_REALTIME_MODEL,
+  MAX_QWEN_PROVIDER_CONTROL_BYTES,
   QWEN_REALTIME_MODELS,
   QwenHandshake,
   buildQwenRealtimeEndpoint,
   isQwenRealtimeModel,
   type QwenRealtimeModel,
+  type QwenUpdatedSessionExpectation,
 } from './host/qwen.js'
 export {
   MAX_PROPOSAL_INSTRUCTION_LENGTH,
