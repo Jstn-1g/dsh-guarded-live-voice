@@ -3,6 +3,8 @@ import type { IncomingMessage } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { WebSocket, WebSocketServer, type RawData } from 'ws'
 import { assessUpgradeRequest, rejectUpgrade } from './carrier.js'
+import type { ManualTurnCoordinator } from './manual-turn.js'
+import { MAX_QWEN_BUFFERED_BYTES, MAX_QWEN_INPUT_CHUNK_BYTES } from './qwen-manual-turn.js'
 import type { VoiceSessionManager } from './session-manager.js'
 import { asGuardedVoiceError, GuardedVoiceError } from '../shared/errors.js'
 import {
@@ -24,6 +26,7 @@ export interface GuardedVoiceGatewayOptions {
   readonly bindTimeoutMs?: number
   readonly maxConnections?: number
   readonly logger?: GatewayLogger
+  readonly turns?: ManualTurnCoordinator
 }
 
 interface ClientRecord {
@@ -40,13 +43,19 @@ function textOf(data: RawData): string {
   return data.toString('utf8')
 }
 
-/** Milestone-one carrier: JSON binding and consent only; audio is fail-closed. */
+function binaryOf(data: RawData): Uint8Array {
+  if (Array.isArray(data)) return new Uint8Array(Buffer.concat(data))
+  if (data instanceof ArrayBuffer) return new Uint8Array(data)
+  return new Uint8Array(data)
+}
+
+/** Exact-session carrier: bounded binary PCM is admitted only after consent and provider readiness. */
 export class GuardedVoiceGateway {
   private readonly server = new WebSocketServer({
     noServer: true,
     clientTracking: false,
     perMessageDeflate: false,
-    maxPayload: MAX_CONTROL_BYTES,
+    maxPayload: Math.max(MAX_CONTROL_BYTES, MAX_QWEN_INPUT_CHUNK_BYTES),
   })
   private readonly clients = new Map<string, ClientRecord>()
   private readonly bindTimeoutMs: number
@@ -81,7 +90,11 @@ export class GuardedVoiceGateway {
   }
 
   stopSession(sessionId: string): void {
-    for (const connectionId of this.options.manager.stopSession(sessionId)) {
+    const connectionIds = new Set([
+      ...(this.options.turns?.stopSession(sessionId) ?? []),
+      ...this.options.manager.stopSession(sessionId),
+    ])
+    for (const connectionId of connectionIds) {
       const client = this.take(connectionId)
       if (client === undefined) continue
       this.send(client.socket, {
@@ -99,9 +112,11 @@ export class GuardedVoiceGateway {
       const client = this.take(connectionId)
       if (client === undefined) continue
       this.options.manager.stop(connectionId)
+      this.options.turns?.stop(connectionId)
       client.socket.terminate()
     }
     this.server.close()
+    this.options.turns?.close()
   }
 
   /** Number of carrier connections currently consuming the bounded capacity. */
@@ -124,7 +139,19 @@ export class GuardedVoiceGateway {
 
     socket.on('message', (data, isBinary) => {
       if (isBinary) {
-        this.fail(connectionId, new GuardedVoiceError('invalid-message', 'audio frames are not enabled in this milestone'))
+        // Copy the frame before queuing it, then preserve its wire order with
+        // control messages. In particular, bytes observed after turn.commit
+        // must never overtake that commit while an earlier control awaits.
+        const pcm16 = new Uint8Array(binaryOf(data))
+        client.tail = client.tail
+          .then(() => {
+            if (this.clients.get(connectionId) !== client) return
+            if (this.options.turns === undefined) {
+              throw new GuardedVoiceError('invalid-state', 'manual audio turns are not configured')
+            }
+            this.options.turns.appendPcm16(connectionId, pcm16)
+          })
+          .catch(error => { this.fail(connectionId, error) })
         return
       }
       let control: ClientControl
@@ -174,21 +201,58 @@ export class GuardedVoiceGateway {
           exportedContext: 'none',
           executionAuthority: 'none',
           providerRetention: 'not specified for Qwen realtime audio',
-          currentMilestone: 'no microphone access or audio transmission',
+          currentMilestone: 'one bounded manual audio turn after acceptance',
         },
       })
+      return
+    }
+    if (control.type === 'turn.commit') {
+      if (this.options.turns === undefined) {
+        throw new GuardedVoiceError('invalid-state', 'manual audio turns are not configured')
+      }
+      this.options.turns.commit(connectionId)
       return
     }
     if (client.consentTimer !== undefined) clearTimeout(client.consentTimer)
     client.consentTimer = undefined
     const ready = await this.options.manager.acceptConsent(connectionId, control.challenge)
+    const provider = this.options.turns === undefined
+      ? ready.provider
+      : await this.options.turns.start(connectionId, {
+          event: (event) => {
+            const live = this.clients.get(connectionId)
+            if (live === undefined) return
+            if (event.type === 'transcript') {
+              this.send(live.socket, {
+                v: WIRE_VERSION,
+                type: 'transcript',
+                role: event.role,
+                text: event.text,
+                final: event.final,
+              })
+            } else if (event.type === 'audio') {
+              if (live.socket.bufferedAmount + event.pcm24.byteLength > MAX_QWEN_BUFFERED_BYTES) {
+                this.fail(connectionId, new GuardedVoiceError('invalid-state', 'browser audio backpressure limit reached'))
+              } else if (live.socket.readyState === WebSocket.OPEN) {
+                live.socket.send(event.pcm24, { binary: true })
+              }
+            } else {
+              this.send(live.socket, {
+                v: WIRE_VERSION,
+                type: 'turn.done',
+                status: event.status,
+              })
+            }
+          },
+          failed: error => { this.fail(connectionId, error) },
+        })
     this.send(client.socket, {
       v: WIRE_VERSION,
       type: 'ready',
       sessionId: ready.binding.sessionId,
       workspaceId: ready.binding.workspaceId,
-      provider: ready.provider.provider,
-      model: ready.provider.model,
+      provider: provider.provider,
+      model: provider.model,
       authority: 'proposal-only',
     })
   }
@@ -199,6 +263,7 @@ export class GuardedVoiceGateway {
     const client = this.take(connectionId)
     if (client === undefined) return
     this.options.manager.stop(connectionId)
+    this.options.turns?.stop(connectionId)
     this.send(client.socket, { v: WIRE_VERSION, type: 'stopped' })
     client.socket.close(1000, 'stopped')
   }
@@ -215,6 +280,7 @@ export class GuardedVoiceGateway {
       message: safe.message,
     })
     this.options.manager.stop(connectionId)
+    this.options.turns?.stop(connectionId)
     client.socket.close(1008, safe.code)
   }
 
@@ -225,6 +291,7 @@ export class GuardedVoiceGateway {
   private remove(connectionId: string): void {
     this.take(connectionId)
     this.options.manager.stop(connectionId)
+    this.options.turns?.stop(connectionId)
   }
 
   private take(connectionId: string): ClientRecord | undefined {

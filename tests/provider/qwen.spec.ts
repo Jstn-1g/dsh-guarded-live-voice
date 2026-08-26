@@ -99,4 +99,37 @@ describe('Qwen contract boundary', () => {
       },
     }))).toThrow(/configuration does not match/u)
   })
+
+  it('can require the exact documented PCM audio-mode formats', () => {
+    const handshake = new QwenHandshake(
+      {
+        session: {
+          modalities: ['text', 'audio'],
+          input_audio_format: 'pcm',
+          output_audio_format: 'pcm',
+          turn_detection: null,
+        },
+      },
+      'qwen-audio-3.0-realtime-plus',
+      {
+        modalities: ['text', 'audio'],
+        turnDetection: null,
+        inputAudioFormat: 'pcm',
+        outputAudioFormat: 'pcm',
+      },
+    )
+    handshake.receive(created)
+    expect(() => handshake.receive(JSON.stringify({
+      type: 'session.updated',
+      session: {
+        id: 'sess-1',
+        modalities: ['text', 'audio'],
+        input_audio_format: 'wav',
+        output_audio_format: 'pcm',
+        model: 'qwen-audio-3.0-realtime-plus',
+        object: 'realtime.session',
+        turn_detection: null,
+      },
+    }))).toThrow(/configuration does not match/u)
+  })
 })

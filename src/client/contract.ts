@@ -5,8 +5,10 @@ import type { NS } from './locales.js'
 export interface VoiceInjected {
   readonly hooks: { readonly voice: HostObservable<VoiceClientSnapshot> }
   readonly startVoice: (sessionId: string) => void
-  readonly acceptDisclosure: (sessionId: string) => void
+  readonly acceptDisclosure: (sessionId: string, draftRevision: number) => void
   readonly stopVoice: (sessionId: string) => void
+  readonly appendVoicePcm16: (sessionId: string, chunk: Uint8Array) => void
+  readonly commitVoiceTurn: (sessionId: string) => void
 }
 
 export type VoiceControlProps =

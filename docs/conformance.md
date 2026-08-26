@@ -17,8 +17,15 @@ these are proven:
 - no secret appears in client frames, errors, fixtures, logs, or package files;
 - Qwen handshake, transcription, output audio, barge-in, and cancellation pass
   against a live credentialed endpoint;
+- uncommitted input and in-flight responses close at their documented
+  wall-clock deadlines even when a peer dribbles data below byte ceilings;
+- browser capture resamples to PCM16 mono/16 kHz only after accepted disclosure,
+  and default playback consumes PCM16 mono/24 kHz without durable storage;
 - microphone, playback, sockets, timers, and buffers stop on every lifecycle
   edge;
 - accepted proposals fill but never submit the ordinary composer;
+- provider output fails closed if the live Session object or Workspace binding
+  changes after commit, and post-commit binary frames cannot overtake commit;
+- the one-shot carrier releases its connection slot after terminal completion;
 - build, packed-install, and current DSH profile smokes pass; and
 - documentation states only behavior demonstrated by those gates.

@@ -5,7 +5,12 @@ import { WebSocket } from 'ws'
 import { AuthorityGuard } from '../../src/host/authority.js'
 import { ConsentChallenges } from '../../src/host/consent.js'
 import { GuardedVoiceGateway } from '../../src/host/gateway.js'
-import type { AuthorizeProvider } from '../../src/host/provider.js'
+import { ManualTurnCoordinator, type OpenManualTurnProvider } from '../../src/host/manual-turn.js'
+import type {
+  AuthorizeProvider,
+  ManualTurnProviderEvent,
+  ManualTurnProviderSession,
+} from '../../src/host/provider.js'
 import { VoiceSessionManager } from '../../src/host/session-manager.js'
 
 const cleanups: Array<() => Promise<void>> = []
@@ -35,6 +40,7 @@ interface StartGatewayOptions {
   readonly consentTtlMs?: number
   readonly maxConnections?: number
   readonly authorize?: AuthorizeProvider
+  readonly openTurn?: OpenManualTurnProvider
 }
 
 async function startGateway(options: StartGatewayOptions = {}) {
@@ -48,12 +54,14 @@ async function startGateway(options: StartGatewayOptions = {}) {
     authorize,
   )
   const warnings: Error[] = []
+  const turns = options.openTurn === undefined ? undefined : new ManualTurnCoordinator(manager, options.openTurn)
   const gateway = new GuardedVoiceGateway({
     manager,
     trustedHosts: ['127.0.0.1'],
     bindTimeoutMs: options.bindTimeoutMs ?? 1_000,
     ...(options.maxConnections === undefined ? {} : { maxConnections: options.maxConnections }),
     logger: { warn: error => { warnings.push(error) } },
+    ...(turns === undefined ? {} : { turns }),
   })
   const server: Server = createServer()
   server.on('upgrade', (request, socket, head) => { gateway.handleUpgrade(request, socket, head) })
@@ -63,7 +71,7 @@ async function startGateway(options: StartGatewayOptions = {}) {
     gateway.close()
     await new Promise<void>(resolve => server.close(() => resolve()))
   })
-  return { authorize, gateway, manager, port, sessions, warnings }
+  return { authorize, gateway, manager, port, sessions, turns, warnings }
 }
 
 function connect(port: number, origin = `http://127.0.0.1:${port}`): WebSocket {
@@ -87,7 +95,7 @@ describe('GuardedVoiceGateway', () => {
       exportedContext: 'none',
       executionAuthority: 'none',
       providerRetention: 'not specified for Qwen realtime audio',
-      currentMilestone: 'no microphone access or audio transmission',
+      currentMilestone: 'one bounded manual audio turn after acceptance',
     })
     expect(authorize).not.toHaveBeenCalled()
 
@@ -108,6 +116,110 @@ describe('GuardedVoiceGateway', () => {
     await expect(stoppedEvent).resolves.toMatchObject({ type: 'stopped' })
     await expect(didClose).resolves.toBe(1000)
     expect(manager.size).toBe(0)
+  })
+
+  it('relays one post-consent binary turn and bounded provider output', async () => {
+    const listeners = new Set<(event: ManualTurnProviderEvent) => void>()
+    const appendPcm16 = vi.fn()
+    const commit = vi.fn()
+    let resolveClosed: (reason: Awaited<ManualTurnProviderSession['closed']>) => void = () => {}
+    const provider: ManualTurnProviderSession = {
+      authorization: { provider: 'qwen', model: 'qwen-test' },
+      closed: new Promise(resolve => { resolveClosed = resolve }),
+      appendPcm16,
+      commit,
+      close: vi.fn(() => { resolveClosed('local') }),
+      subscribe(listener) {
+        listeners.add(listener)
+        return () => { listeners.delete(listener) }
+      },
+    }
+    const openTurn = vi.fn(async () => provider)
+    const { port, turns } = await startGateway({ openTurn })
+    const socket = connect(port)
+    await opened(socket)
+    const disclosure = nextJson(socket)
+    socket.send('{"v":1,"type":"bind","sessionId":"s1"}')
+    const consent = await disclosure
+    const ready = nextJson(socket)
+    socket.send(JSON.stringify({ v: 1, type: 'consent.accept', challenge: consent.challenge }))
+    await expect(ready).resolves.toMatchObject({ type: 'ready', sessionId: 's1', workspaceId: 'w1' })
+    expect(openTurn).toHaveBeenCalledWith(
+      { sessionId: 's1', workspaceId: 'w1' },
+      { provider: 'qwen', model: 'qwen-test' },
+      expect.any(AbortSignal),
+    )
+
+    socket.send(Buffer.from([1, 0, 2, 0]))
+    await expect.poll(() => appendPcm16.mock.calls.length).toBe(1)
+    expect(appendPcm16).toHaveBeenCalledWith(new Uint8Array([1, 0, 2, 0]))
+    socket.send('{"v":1,"type":"turn.commit"}')
+    await expect.poll(() => commit.mock.calls.length).toBe(1)
+
+    const transcript = nextJson(socket)
+    for (const listener of listeners) listener({
+      type: 'transcript', role: 'assistant', text: 'draft', final: true,
+    })
+    await expect(transcript).resolves.toMatchObject({
+      type: 'transcript', role: 'assistant', text: 'draft', final: true,
+    })
+    const output = new Promise<Uint8Array>((resolve, reject) => {
+      socket.once('message', (raw, isBinary) => {
+        if (!isBinary) reject(new Error('expected binary output'))
+        else resolve(new Uint8Array(raw as Buffer))
+      })
+    })
+    for (const listener of listeners) listener({ type: 'audio', pcm24: new Uint8Array([3, 0, 4, 0]) })
+    await expect(output).resolves.toEqual(new Uint8Array([3, 0, 4, 0]))
+    const done = nextJson(socket)
+    for (const listener of listeners) listener({ type: 'done', status: 'completed' })
+    await expect(done).resolves.toMatchObject({ type: 'turn.done', status: 'completed' })
+    expect(turns?.size).toBe(1)
+    socket.close()
+  })
+
+  it('preserves wire order between commit controls and binary audio', async () => {
+    const commit = vi.fn()
+    const appendPcm16 = vi.fn()
+    const provider: ManualTurnProviderSession = {
+      authorization: { provider: 'qwen', model: 'qwen-test' },
+      closed: new Promise(() => {}),
+      appendPcm16,
+      commit,
+      close: vi.fn(),
+      subscribe: () => () => {},
+    }
+    let providerOpening!: () => void
+    const opening = new Promise<void>(resolve => { providerOpening = resolve })
+    let releaseProvider!: () => void
+    const providerRelease = new Promise<void>(resolve => { releaseProvider = resolve })
+    const openTurn = vi.fn(async () => {
+      providerOpening()
+      await providerRelease
+      return provider
+    })
+    const { port } = await startGateway({ openTurn })
+    const socket = connect(port)
+    await opened(socket)
+    const disclosure = nextJson(socket)
+    socket.send('{"v":1,"type":"bind","sessionId":"s1"}')
+    const consent = await disclosure
+    const ready = nextJson(socket)
+    socket.send(JSON.stringify({ v: 1, type: 'consent.accept', challenge: consent.challenge }))
+    await opening
+
+    socket.send(Buffer.from([1, 0]))
+    socket.send('{"v":1,"type":"turn.commit"}')
+    expect(appendPcm16).not.toHaveBeenCalled()
+    expect(commit).not.toHaveBeenCalled()
+    releaseProvider()
+    await expect(ready).resolves.toMatchObject({ type: 'ready', sessionId: 's1' })
+    await expect.poll(() => commit.mock.calls.length).toBe(1)
+
+    expect(appendPcm16).toHaveBeenCalledOnce()
+    expect(commit).toHaveBeenCalledOnce()
+    expect(appendPcm16.mock.invocationCallOrder[0]!).toBeLessThan(commit.mock.invocationCallOrder[0]!)
+    socket.close()
   })
 
   it('rejects cross-origin upgrades before creating a managed connection', async () => {
@@ -146,7 +258,7 @@ describe('GuardedVoiceGateway', () => {
     await opened(binary)
     const binaryError = nextJson(binary)
     binary.send(Buffer.from([1, 2, 3]))
-    await expect(binaryError).resolves.toMatchObject({ type: 'error', code: 'invalid-message' })
+    await expect(binaryError).resolves.toMatchObject({ type: 'error', code: 'invalid-state' })
 
     const second = await startGateway({ bindTimeoutMs: 20 })
     const idle = connect(second.port)

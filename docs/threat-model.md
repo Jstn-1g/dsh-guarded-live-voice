@@ -24,24 +24,36 @@
   handshake order.
 - Tool escalation: one bounded proposal schema with `authority: none`.
 
-## Added in milestone-three groundwork
+## Added in the v0.3 development branch
 
-The internal provider handshake binds the created and updated session identity,
-requires the requested allowlisted model, and confirms the effective text-only,
-manual-turn configuration. Its transport also confines the destination, bounds
-credential and control-message bytes, disables redirects and compression,
-exposes only an opaque close lease, and cleans up on cancellation, timeout,
-protocol failure, provider closure, and local close. It is not exported or wired
-into the registered plugin.
+The provider handshake binds the created and updated session identity, requires
+the requested allowlisted model, and confirms effective audio/text, PCM, manual-
+turn configuration. The one-turn capability bounds input/output chunks, turn
+duration, transcript length, provider-event size, and socket backpressure; disables
+redirects and compression; rejects tool/function-call surfaces; and cleans up
+on cancellation, timeout, protocol failure, provider closure, authority change,
+and local close. Independent 60-second input and 90-second response wall clocks
+prevent a low-rate peer from holding the provider capability indefinitely.
+
+The coordinator revalidates exact session object identity and workspace
+membership before and after provider open, before every append/commit, and
+before every provider output event is forwarded to the browser. The composer
+handoff is explicit, accepts only a completed final assistant
+transcript, and requires an unchanged draft revision, preventing silent
+overwrite of edits made while the voice turn was in flight.
+
+Client and Host preserve the observed order of binary audio and non-cancellation
+control frames. After a terminal response, the browser retains only the bounded
+completed snapshot and releases its one-shot carrier connection immediately.
 
 ## Deferred with the feature
 
-Audio framing, rate/backpressure limits, provider cancellation, browser CSP
-compatibility, and interruption latency will be addressed before audio is
-enabled. Live handshake and audio behavior require credentialed functional
-testing. Provider retention, deletion, or residency claims require authoritative
-provider policy or contractual evidence and cannot be inferred from fake tests
-or successful live connections.
+Browser microphone capture/resampling, default playback, provider cancellation
+and barge-in, continuous turns, browser CSP compatibility, packed-install
+behavior, and interruption latency remain deferred. Live handshake and audio
+behavior require credentialed functional testing. Provider retention, deletion,
+or residency claims require authoritative provider policy or contractual
+evidence and cannot be inferred from fake tests or successful live connections.
 
 ## Known unresolved boundary
 

@@ -27,8 +27,10 @@ export function apply(ctx: ClientContext): void {
   const injected = (): VoiceInjected => ({
     hooks: { voice: controller },
     startVoice: sessionId => { controller.start(sessionId) },
-    acceptDisclosure: sessionId => { controller.accept(sessionId) },
+    acceptDisclosure: (sessionId, draftRevision) => { controller.accept(sessionId, draftRevision) },
     stopVoice: sessionId => { controller.stop(sessionId) },
+    appendVoicePcm16: (sessionId, chunk) => { controller.appendPcm16(sessionId, chunk) },
+    commitVoiceTurn: sessionId => { controller.commitTurn(sessionId) },
   })
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'guarded-live-voice: browser dictionaries')

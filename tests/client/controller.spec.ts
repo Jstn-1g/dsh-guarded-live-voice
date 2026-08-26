@@ -6,12 +6,17 @@ type SocketListener = (event: Event | MessageEvent<unknown> | CloseEvent) => voi
 
 class FakeSocket {
   readyState = 0
+  bufferedAmount = 0
+  binaryType: BinaryType = 'blob'
   readonly sent: string[] = []
+  readonly binary: Uint8Array[] = []
   readonly closes: Array<{ readonly code?: number; readonly reason?: string }> = []
   private readonly listeners = new Map<SocketEventName, Set<SocketListener>>()
 
-  send(data: string): void {
-    this.sent.push(data)
+  send(data: string | BufferSource): void {
+    if (typeof data === 'string') this.sent.push(data)
+    else if (data instanceof ArrayBuffer) this.binary.push(new Uint8Array(data))
+    else this.binary.push(new Uint8Array(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)))
   }
 
   close(code?: number, reason?: string): void {
@@ -73,7 +78,7 @@ function consentEvent(sessionId = 'session-1', workspaceId = 'workspace-1', expi
       exportedContext: 'none',
       executionAuthority: 'none',
       providerRetention: 'not specified for Qwen realtime audio',
-      currentMilestone: 'no microphone access or audio transmission',
+      currentMilestone: 'one bounded manual audio turn after acceptance',
     },
   })
 }
@@ -95,6 +100,7 @@ function fixture(socket = new FakeSocket()) {
   let scheduled: { readonly callback: () => void; readonly delayMs: number } | undefined
   const timer = {} as ReturnType<typeof setTimeout>
   const cancelScheduled = vi.fn()
+  const audioSink = { write: vi.fn(), reset: vi.fn() }
   const socketFactory = vi.fn((_url: string) => socket as unknown as WebSocket)
   const controller = new VoiceClientController({
     route: '/guarded-voice',
@@ -106,12 +112,14 @@ function fixture(socket = new FakeSocket()) {
       return timer
     },
     cancelScheduled,
+    audioSink,
   })
   return {
     controller,
     socket,
     socketFactory,
     cancelScheduled,
+    audioSink,
     scheduled: () => scheduled,
     setNow(value: number) { now = value },
   }
@@ -215,6 +223,90 @@ describe('browser voice controller', () => {
     mismatch.socket.message(readyEvent('session-1', 'workspace-2'))
     expect(mismatch.controller.getSnapshot()).toMatchObject({ phase: 'error' })
     expect(mismatch.socket.closes).toHaveLength(1)
+  })
+
+  it('relays one exact-session bounded PCM turn and accepts only ordered streamed output', () => {
+    const f = fixture()
+    f.controller.start('session-1')
+    expect(f.socket.binaryType).toBe('arraybuffer')
+    f.socket.open()
+    f.socket.message(consentEvent())
+    f.controller.accept('session-1', 9)
+    f.socket.message(readyEvent())
+    expect(f.controller.getSnapshot()).toMatchObject({ phase: 'ready', draftRevision: 9 })
+
+    f.controller.appendPcm16('other-session', new Uint8Array([1, 0]))
+    expect(f.socket.binary).toEqual([])
+    const pcm = new Uint8Array([1, 0, 2, 0])
+    f.controller.appendPcm16('session-1', pcm)
+    pcm.fill(9)
+    expect(f.socket.binary).toEqual([new Uint8Array([1, 0, 2, 0])])
+    f.controller.commitTurn('other-session')
+    expect(f.controller.getSnapshot().phase).toBe('ready')
+    f.controller.commitTurn('session-1')
+    expect(JSON.parse(f.socket.sent.at(-1) ?? '')).toEqual({ v: 1, type: 'turn.commit' })
+    expect(f.controller.getSnapshot()).toMatchObject({ phase: 'responding', draftRevision: 9 })
+
+    f.socket.message(JSON.stringify({
+      v: 1, type: 'transcript', role: 'user', text: 'hello', final: true,
+    }))
+    f.socket.message(JSON.stringify({
+      v: 1, type: 'transcript', role: 'assistant', text: 'answer', final: true,
+    }))
+    const audio = new Uint8Array([3, 0, 4, 0])
+    f.socket.message(audio.buffer)
+    expect(f.audioSink.write).toHaveBeenCalledWith(new Uint8Array([3, 0, 4, 0]))
+    f.socket.message(JSON.stringify({ v: 1, type: 'turn.done', status: 'completed' }))
+    expect(f.controller.getSnapshot()).toMatchObject({
+      phase: 'completed',
+      turnStatus: 'completed',
+      userTranscript: 'hello',
+      userTranscriptFinal: true,
+      assistantTranscript: 'answer',
+      assistantTranscriptFinal: true,
+      draftRevision: 9,
+    })
+    expect(f.socket.closes).toEqual([{ code: 1000, reason: 'turn complete' }])
+    f.controller.appendPcm16('session-1', new Uint8Array([5, 0]))
+    expect(f.socket.binary).toHaveLength(1)
+    f.controller.stop('session-1')
+    expect(f.audioSink.reset).toHaveBeenCalled()
+  })
+
+  it('fails closed on malformed or out-of-phase manual audio', () => {
+    const odd = fixture()
+    odd.controller.start('session-1')
+    odd.socket.open()
+    odd.socket.message(consentEvent())
+    odd.controller.accept('session-1')
+    odd.socket.message(readyEvent())
+    odd.controller.appendPcm16('session-1', new Uint8Array([1]))
+    expect(odd.controller.getSnapshot()).toMatchObject({ phase: 'error', error: expect.stringContaining('PCM16') })
+
+    const earlyOutput = fixture()
+    earlyOutput.controller.start('session-1')
+    earlyOutput.socket.open()
+    earlyOutput.socket.message(consentEvent())
+    earlyOutput.controller.accept('session-1')
+    earlyOutput.socket.message(readyEvent())
+    earlyOutput.socket.message(new Uint8Array([1, 0]).buffer)
+    expect(earlyOutput.controller.getSnapshot()).toMatchObject({
+      phase: 'error',
+      error: 'voice websocket sent audio outside the active response',
+    })
+
+    const congested = fixture()
+    congested.controller.start('session-1')
+    congested.socket.open()
+    congested.socket.message(consentEvent())
+    congested.controller.accept('session-1')
+    congested.socket.message(readyEvent())
+    congested.socket.bufferedAmount = 512 * 1024
+    congested.controller.appendPcm16('session-1', new Uint8Array([1, 0]))
+    expect(congested.controller.getSnapshot()).toMatchObject({
+      phase: 'error',
+      error: 'voice websocket backpressure limit reached',
+    })
   })
 
   it('stops only the addressed session and fences every late callback', () => {

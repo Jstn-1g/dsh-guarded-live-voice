@@ -19,19 +19,27 @@ The current design has an ordered Host/browser control path:
    exact disclosure and binding, and sends acceptance only after the disclosure
    button is pressed.
 8. `session-manager` consumes the challenge once, revalidates authority, and
-   permits the Host to validate credential availability and the allowlisted
-   `qwen` endpoint. The registered runtime stops here.
-9. The internal `qwen` handshake validates provider-event bounds, documented
-   order, exact session identity, requested model, and effective configuration.
-10. The internal `qwen-transport` can establish a configuration-only session,
-    send one fixed text-only/manual-turn update, and return only an opaque close
-    lease. It is not exported from the package root or called by `apply`.
-11. `proposal` can parse bounded non-executable proposal data, but no
-    provider-to-composer integration exists yet.
+   authorizes the allowlisted `qwen` model without exposing credential material.
+9. `manual-turn` revalidates that ready lease, opens a provider capability, then
+   revalidates again before publishing readiness. It repeats the check before
+   every append and commit, and again before every provider event is exposed to
+   the browser.
+10. `qwen-manual-turn` requires an audio-mode `pcm`/manual-turn handshake and
+    exposes exactly one bounded PCM append/commit capability. It accepts only
+    the documented transcript/audio/response event subset; response, item,
+    output, and content identities cannot change mid-turn. Uncommitted input
+    expires after 60 seconds and an in-flight response after 90 seconds.
+11. After provider readiness, `gateway` accepts bounded binary PCM frames and
+    one `turn.commit` control. It relays only complete transcript snapshots,
+    bounded PCM output frames, and one terminal status.
+12. The browser controller exposes explicit PCM append/commit seams and an
+    injectable PCM output sink. It contains no microphone or default playback
+    implementation in this branch.
+13. A completed final assistant transcript can be copied to the exact session's
+    composer only if its draft revision still equals the revision captured at
+    disclosure acceptance. Conflict, cancellation, or incomplete transcript
+    leaves the composer untouched; no code path calls submit.
 
-Steps 9 through 11 are internal, fake-provider-tested groundwork and do not
-create a public provider or composer path.
-
-The carrier accepts only versioned JSON control frames. Binary audio remains
-rejected until microphone capture, backpressure, provider streaming,
-cancellation, playback, and cleanup are implemented and verified together.
+All provider behavior is fake-server tested. Credentialed Qwen behavior,
+browser capture/resampling, audible playback, packed DSH installation, and
+latency remain release gates.

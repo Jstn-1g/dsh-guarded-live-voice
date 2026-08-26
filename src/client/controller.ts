@@ -1,4 +1,11 @@
 import { CLIENT_BOOT_VERSION, parseGuardedVoiceClientBoot } from '../shared/boot.js'
+import {
+  MAX_INPUT_PCM16_CHUNK_BYTES,
+  MAX_INPUT_PCM16_TURN_BYTES,
+  MAX_OUTPUT_PCM16_CHUNK_BYTES,
+  MAX_OUTPUT_PCM16_TURN_BYTES,
+  MAX_VOICE_SOCKET_BUFFERED_BYTES,
+} from '../shared/audio.js'
 import { WIRE_VERSION, parseServerControl } from '../shared/wire.js'
 
 export type VoiceClientPhase =
@@ -7,6 +14,8 @@ export type VoiceClientPhase =
   | 'awaiting-consent'
   | 'authorizing'
   | 'ready'
+  | 'responding'
+  | 'completed'
   | 'error'
 
 export interface VoiceDisclosureView {
@@ -16,7 +25,7 @@ export interface VoiceDisclosureView {
   readonly exportedContext: 'none'
   readonly executionAuthority: 'none'
   readonly providerRetention: 'not specified for Qwen realtime audio'
-  readonly currentMilestone: 'no microphone access or audio transmission'
+  readonly currentMilestone: 'one bounded manual audio turn after acceptance'
 }
 
 export interface VoiceClientSnapshot {
@@ -25,11 +34,20 @@ export interface VoiceClientSnapshot {
   readonly disclosure?: VoiceDisclosureView
   readonly model?: string
   readonly error?: string
+  readonly userTranscript?: string
+  readonly assistantTranscript?: string
+  readonly userTranscriptFinal?: boolean
+  readonly assistantTranscriptFinal?: boolean
+  readonly turnStatus?: 'completed' | 'cancelled'
+  /** Composer revision captured at the visible acceptance gesture. */
+  readonly draftRevision?: number
 }
 
 interface VoiceSocket {
   readonly readyState: number
-  send(data: string): void
+  readonly bufferedAmount: number
+  binaryType?: BinaryType
+  send(data: string | BufferSource): void
   close(code?: number, reason?: string): void
   addEventListener(type: 'open', listener: (event: Event) => void): void
   addEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void
@@ -39,6 +57,13 @@ interface VoiceSocket {
   removeEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void
   removeEventListener(type: 'error', listener: (event: Event) => void): void
   removeEventListener(type: 'close', listener: (event: CloseEvent) => void): void
+}
+
+export interface VoiceAudioSink {
+  /** Consume one bounded PCM16 mono/24 kHz provider chunk. */
+  write(pcm24: Uint8Array): void
+  /** Drop queued playback when the exact voice lifecycle stops or fails. */
+  reset(): void
 }
 
 interface ActiveSocket {
@@ -58,13 +83,14 @@ export interface VoiceClientControllerOptions {
   readonly now?: () => number
   readonly schedule?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>
   readonly cancelScheduled?: (timer: ReturnType<typeof setTimeout>) => void
+  readonly audioSink?: VoiceAudioSink
 }
 
 const IDLE: VoiceClientSnapshot = { phase: 'idle' }
 const SOCKET_CONNECTING = 0
 const SOCKET_OPEN = 1
 
-/** Browser-side disclosure and setup coordinator. Microphone and audio remain absent. */
+/** Browser-side disclosure coordinator. Capture and default playback remain absent. */
 export class VoiceClientController {
   private snapshot: VoiceClientSnapshot = IDLE
   private readonly listeners = new Set<() => void>()
@@ -79,6 +105,9 @@ export class VoiceClientController {
   private consentTimer: ReturnType<typeof setTimeout> | undefined
   private generation = 0
   private disposed = false
+  private readonly audioSink: VoiceAudioSink
+  private inputBytes = 0
+  private outputBytes = 0
 
   constructor(private readonly options: VoiceClientControllerOptions) {
     this.location = options.location ?? window.location
@@ -90,6 +119,7 @@ export class VoiceClientController {
     this.now = options.now ?? Date.now
     this.schedule = options.schedule ?? ((callback, delayMs) => setTimeout(callback, delayMs))
     this.cancelScheduled = options.cancelScheduled ?? (timer => { clearTimeout(timer) })
+    this.audioSink = options.audioSink ?? { write: () => {}, reset: () => {} }
   }
 
   /** Return the identity-stable view until one lifecycle fact changes. */
@@ -105,6 +135,7 @@ export class VoiceClientController {
   start(sessionId: string): void {
     if (this.disposed) return
     this.releaseActive(1000, 'replaced')
+    this.resetTurn()
     const generation = ++this.generation
     let socket: VoiceSocket
     try {
@@ -123,6 +154,7 @@ export class VoiceClientController {
       onClose: event => { this.closed(active, event) },
     }
     this.active = active
+    socket.binaryType = 'arraybuffer'
     socket.addEventListener('open', active.onOpen)
     socket.addEventListener('message', active.onMessage)
     socket.addEventListener('error', active.onError)
@@ -130,8 +162,65 @@ export class VoiceClientController {
     this.publish({ phase: 'connecting', sessionId })
   }
 
+  /** Append one bounded PCM16 mono/16 kHz chunk to this exact ready Session. */
+  appendPcm16(sessionId: string, chunk: Uint8Array): void {
+    const active = this.active
+    if (this.disposed
+      || this.snapshot.phase !== 'ready'
+      || this.snapshot.sessionId !== sessionId
+      || active?.sessionId !== sessionId
+      || active.socket.readyState !== SOCKET_OPEN) return
+    if (chunk.byteLength === 0
+      || chunk.byteLength > MAX_INPUT_PCM16_CHUNK_BYTES
+      || chunk.byteLength % 2 !== 0
+      || this.inputBytes + chunk.byteLength > MAX_INPUT_PCM16_TURN_BYTES) {
+      this.failedSocket(active, new Error('PCM16 input exceeds the manual-turn boundary'))
+      return
+    }
+    if (active.socket.bufferedAmount + chunk.byteLength > MAX_VOICE_SOCKET_BUFFERED_BYTES) {
+      this.failedSocket(active, new Error('voice websocket backpressure limit reached'))
+      return
+    }
+    try {
+      const owned = new Uint8Array(chunk)
+      active.socket.send(owned)
+      this.inputBytes += owned.byteLength
+    } catch (error) {
+      this.failedSocket(active, error)
+    }
+  }
+
+  /** Commit the one manual turn. This operation can never submit the DSH composer. */
+  commitTurn(sessionId: string): void {
+    const active = this.active
+    if (this.disposed
+      || this.snapshot.phase !== 'ready'
+      || this.snapshot.sessionId !== sessionId
+      || active?.sessionId !== sessionId
+      || active.socket.readyState !== SOCKET_OPEN
+      || this.inputBytes === 0) return
+    try {
+      const commit = JSON.stringify({ v: WIRE_VERSION, type: 'turn.commit' })
+      if (active.socket.bufferedAmount + commit.length > MAX_VOICE_SOCKET_BUFFERED_BYTES) {
+        throw new Error('voice websocket backpressure limit reached')
+      }
+      active.socket.send(commit)
+    } catch (error) {
+      this.failedSocket(active, error)
+      return
+    }
+    this.publish({
+      ...this.snapshot,
+      phase: 'responding',
+      userTranscript: '',
+      assistantTranscript: '',
+      userTranscriptFinal: false,
+      assistantTranscriptFinal: false,
+    })
+  }
+
   /** Consume the hidden one-shot challenge after the visible acceptance gesture. */
-  accept(sessionId: string): void {
+  accept(sessionId: string, draftRevision?: number): void {
     if (this.disposed
       || this.snapshot.phase !== 'awaiting-consent'
       || this.snapshot.sessionId !== sessionId
@@ -157,7 +246,14 @@ export class VoiceClientController {
       this.failedSocket(active, error)
       return
     }
-    this.publish({ phase: 'authorizing', sessionId, disclosure })
+    this.publish({
+      phase: 'authorizing',
+      sessionId,
+      disclosure,
+      ...(draftRevision !== undefined && Number.isSafeInteger(draftRevision) && draftRevision >= 0
+        ? { draftRevision }
+        : {}),
+    })
   }
 
   /** Stop only the addressed setup; a different mounted Session cannot cancel it. */
@@ -173,6 +269,7 @@ export class VoiceClientController {
     }
     ++this.generation
     this.releaseActive(1000, 'stopped')
+    this.resetTurn()
     this.publish(IDLE)
   }
 
@@ -182,6 +279,7 @@ export class VoiceClientController {
     this.disposed = true
     ++this.generation
     this.releaseActive(1000, 'plugin disposed')
+    this.resetTurn()
     this.snapshot = IDLE
     this.listeners.clear()
   }
@@ -210,7 +308,24 @@ export class VoiceClientController {
   private received(active: ActiveSocket, message: MessageEvent<unknown>): void {
     if (!this.isActive(active)) return
     if (typeof message.data !== 'string') {
-      this.failedSocket(active, 'voice websocket sent a binary frame before audio was enabled')
+      if (this.snapshot.phase !== 'responding' || !(message.data instanceof ArrayBuffer)) {
+        this.failedSocket(active, 'voice websocket sent audio outside the active response')
+        return
+      }
+      const pcm24 = new Uint8Array(message.data)
+      if (pcm24.byteLength === 0
+        || pcm24.byteLength > MAX_OUTPUT_PCM16_CHUNK_BYTES
+        || pcm24.byteLength % 2 !== 0
+        || this.outputBytes + pcm24.byteLength > MAX_OUTPUT_PCM16_TURN_BYTES) {
+        this.failedSocket(active, 'voice websocket sent invalid PCM16 output')
+        return
+      }
+      try {
+        this.audioSink.write(new Uint8Array(pcm24))
+        this.outputBytes += pcm24.byteLength
+      } catch (error) {
+        this.failedSocket(active, error)
+      }
       return
     }
     try {
@@ -249,7 +364,38 @@ export class VoiceClientController {
           sessionId: active.sessionId,
           disclosure,
           model: event.model,
+          ...(this.snapshot.draftRevision === undefined
+            ? {}
+            : { draftRevision: this.snapshot.draftRevision }),
         })
+        return
+      }
+      if (event.type === 'transcript') {
+        if (this.snapshot.phase !== 'responding') {
+          throw new Error('voice transcript arrived outside the active response')
+        }
+        this.publish(event.role === 'user'
+          ? {
+              ...this.snapshot,
+              userTranscript: event.text,
+              userTranscriptFinal: event.final,
+            }
+          : {
+              ...this.snapshot,
+              assistantTranscript: event.text,
+              assistantTranscriptFinal: event.final,
+            })
+        return
+      }
+      if (event.type === 'turn.done') {
+        if (this.snapshot.phase !== 'responding') {
+          throw new Error('voice turn completed outside the active response')
+        }
+        this.publish({ ...this.snapshot, phase: 'completed', turnStatus: event.status })
+        // The completed snapshot is sufficient for an explicit draft handoff.
+        // Release the one-shot carrier immediately instead of retaining a
+        // provider-free connection slot until the panel is dismissed.
+        this.releaseRecord(active, true, 1000, 'turn complete')
         return
       }
       if (event.type === 'error') {
@@ -282,7 +428,14 @@ export class VoiceClientController {
   private fail(sessionId: string, error: unknown): void {
     if (this.disposed) return
     const message = error instanceof Error ? error.message : String(error)
+    this.resetTurn()
     this.publish({ phase: 'error', sessionId, error: message })
+  }
+
+  private resetTurn(): void {
+    this.inputBytes = 0
+    this.outputBytes = 0
+    try { this.audioSink.reset() } catch {}
   }
 
   private isActive(active: ActiveSocket): boolean {

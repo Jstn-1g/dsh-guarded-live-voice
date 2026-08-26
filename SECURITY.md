@@ -19,17 +19,27 @@ private transcripts, or private workspace content in a public issue.
   acceptable `Sec-Fetch-Site`, and an available bounded-connection slot. These
   are network-exposure and DNS-rebinding/cross-site fences, not authentication.
 - Provider proposals carry no execution authority.
-- No audio or provider deltas exist in milestone two. A future transport must
-  keep raw audio and partial deltas ephemeral and clear them at every lifecycle
-  boundary.
+- The v0.3 development path permits one bounded manual PCM turn after accepted
+  disclosure. The package does not durably persist raw audio or partial
+  provider deltas, and releases its owned transient resources on lifecycle
+  teardown. An integrator that supplies a custom PCM sink owns that sink's
+  retention behavior.
 - Invalid, oversized, stale, ambiguous, or out-of-order input fails closed.
 
-The registered plugin does not stream audio or connect to a live provider. The
-source tree contains an internal configuration-only transport used by
-deterministic fake-provider tests. It is not exported from the package root, is
-not called by `apply`, exposes no application-data send capability, and must be
-composed behind the exact authority and consumed-consent boundary before any
-public provider path is enabled.
+When explicitly configured with a DashScope workspace and credential reference,
+the registered v0.3 development path can connect to Qwen after exact disclosure
+acceptance and stream only bounded PCM input. It exports no DSH history, files,
+workspace instructions, arbitrary text input, system instruction, or tool
+schema. Provider transcript/audio output is revalidated against the exact live
+session and workspace lease before it reaches the browser. Completed text stays
+proposal-only: an explicit, draft-revision-fenced action may fill the composer,
+but no path submits a prompt or invokes a tool.
+
+The package-root `openQwenManualTurn` primitive owns provider destination,
+protocol, and resource controls. Direct Host-side callers must compose an
+equivalent exact-authority and consumed-consent boundary; the registered
+`apply` path does so. Browser microphone capture and default playback are not
+included in this milestone.
 
 ## Known limitation
 

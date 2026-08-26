@@ -68,6 +68,8 @@ interface QwenSessionIdentity {
 export interface QwenUpdatedSessionExpectation {
   readonly modalities: readonly string[]
   readonly turnDetection: null
+  readonly inputAudioFormat?: 'pcm'
+  readonly outputAudioFormat?: 'pcm'
 }
 
 function parseSessionIdentity(
@@ -102,6 +104,8 @@ function hasExpectedUpdatedSession(
     && actual.modalities.length === expected.modalities.length
     && actual.modalities.every((value, index) => value === expected.modalities[index])
     && actual.turn_detection === expected.turnDetection
+    && (expected.inputAudioFormat === undefined || actual.input_audio_format === expected.inputAudioFormat)
+    && (expected.outputAudioFormat === undefined || actual.output_audio_format === expected.outputAudioFormat)
 }
 
 /**
@@ -131,6 +135,12 @@ export class QwenHandshake {
       : {
           modalities: [...expectedUpdatedSession.modalities],
           turnDetection: expectedUpdatedSession.turnDetection,
+          ...(expectedUpdatedSession.inputAudioFormat === undefined
+            ? {}
+            : { inputAudioFormat: expectedUpdatedSession.inputAudioFormat }),
+          ...(expectedUpdatedSession.outputAudioFormat === undefined
+            ? {}
+            : { outputAudioFormat: expectedUpdatedSession.outputAudioFormat }),
         }
   }
 
