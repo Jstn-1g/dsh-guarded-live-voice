@@ -24,6 +24,9 @@ class FakeSocket {
   }
 
   close(code?: number, reason?: string): void {
+    if (code !== undefined && code !== 1000 && (code < 3000 || code > 4999)) {
+      throw new DOMException('invalid browser WebSocket close code', 'InvalidAccessError')
+    }
     this.closes.push({ ...(code === undefined ? {} : { code }), ...(reason === undefined ? {} : { reason }) })
     this.readyState = 2
   }
@@ -177,7 +180,7 @@ describe('browser voice controller', () => {
       error: 'disclosure acceptance expired',
     })
     expect(f.socket.sent).toHaveLength(1)
-    expect(f.socket.closes).toEqual([{ code: 1008, reason: 'invalid voice state' }])
+    expect(f.socket.closes).toEqual([{ code: 4000, reason: 'invalid voice state' }])
     expect(f.socket.listenerCount()).toBe(0)
   })
 
@@ -343,6 +346,11 @@ describe('browser voice controller', () => {
       })
     })
     expect(deniedCapture.stop).toHaveBeenCalledWith(false)
+    expect(denied.socket.closes).toEqual([{ code: 4000, reason: 'invalid voice state' }])
+    expect(denied.socket.listenerCount()).toBe(0)
+    expect(() => { denied.controller.start('session-2') }).not.toThrow()
+    expect(denied.controller.getSnapshot()).toEqual({ phase: 'connecting', sessionId: 'session-2' })
+    expect(denied.socketFactory).toHaveBeenCalledTimes(2)
     expect(denied.socket.closes).toHaveLength(1)
 
     let handlers: VoiceAudioCaptureHandlers | undefined
@@ -571,7 +579,7 @@ describe('browser voice controller', () => {
     bind.controller.start('session-1')
     bind.socket.open()
     expect(bind.controller.getSnapshot()).toMatchObject({ phase: 'error', error: 'bind send failed' })
-    expect(bind.socket.closes).toEqual([{ code: 1008, reason: 'invalid voice state' }])
+    expect(bind.socket.closes).toEqual([{ code: 4000, reason: 'invalid voice state' }])
     expect(bind.socket.listenerCount()).toBe(0)
 
     const accept = fixture()
@@ -581,7 +589,7 @@ describe('browser voice controller', () => {
     vi.spyOn(accept.socket, 'send').mockImplementation(() => { throw new Error('accept send failed') })
     accept.controller.accept('session-1')
     expect(accept.controller.getSnapshot()).toMatchObject({ phase: 'error', error: 'accept send failed' })
-    expect(accept.socket.closes).toEqual([{ code: 1008, reason: 'invalid voice state' }])
+    expect(accept.socket.closes).toEqual([{ code: 4000, reason: 'invalid voice state' }])
     expect(accept.socket.listenerCount()).toBe(0)
 
     const stop = fixture()
@@ -613,7 +621,7 @@ describe('browser voice controller', () => {
         sessionId: 'session-1',
         error: `unexpected voice stopped event in phase ${phase}`,
       })
-      expect(f.socket.closes).toEqual([{ code: 1008, reason: 'invalid voice state' }])
+      expect(f.socket.closes).toEqual([{ code: 4000, reason: 'invalid voice state' }])
       expect(f.socket.listenerCount()).toBe(0)
     },
   )

@@ -115,6 +115,10 @@ export interface VoiceClientControllerOptions {
 const IDLE: VoiceClientSnapshot = { phase: 'idle' }
 const SOCKET_CONNECTING = 0
 const SOCKET_OPEN = 1
+// Browser clients may initiate WebSocket closure only with 1000 or an
+// application-private code in the 3000-4999 range. Keep failure teardown on
+// one stable private code; server-originated policy closes may still use 1008.
+const CLIENT_FAILURE_CLOSE_CODE = 4000
 
 /** Browser-side disclosure, bounded capture, and one-turn playback coordinator. */
 export class VoiceClientController {
@@ -600,7 +604,12 @@ export class VoiceClientController {
     else this.clearConsentTimer()
   }
 
-  private releaseRecord(active: ActiveSocket, close: boolean, code = 1008, reason = 'invalid voice state'): void {
+  private releaseRecord(
+    active: ActiveSocket,
+    close: boolean,
+    code = CLIENT_FAILURE_CLOSE_CODE,
+    reason = 'invalid voice state',
+  ): void {
     if (this.active !== active) return
     this.active = undefined
     this.challenge = undefined
