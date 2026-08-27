@@ -77,6 +77,12 @@ function fixture() {
   return { ctx, cleanups, declarations, registrations, localeCleanup }
 }
 
+function browserWindow(): EventTarget & { readonly location: { readonly href: string, readonly protocol: string } } {
+  return Object.assign(new EventTarget(), {
+    location: { href: 'http://localhost:2026/', protocol: 'http:' },
+  })
+}
+
 describe('lazy browser plugin', () => {
   it('exports only the function-plugin face and declares its exact services', () => {
     expect(Object.keys(client).sort()).toEqual(['apply', 'inject'])
@@ -87,9 +93,7 @@ describe('lazy browser plugin', () => {
     const constructSocket = vi.fn(() => { throw new Error('must remain lazy') })
     const constructAudioContext = vi.fn(() => { throw new Error('must remain gesture-lazy') })
     const getUserMedia = vi.fn(() => Promise.reject(new Error('must remain gesture-lazy')))
-    vi.stubGlobal('window', {
-      location: { href: 'http://localhost:2026/', protocol: 'http:' },
-    })
+    vi.stubGlobal('window', browserWindow())
     vi.stubGlobal('WebSocket', constructSocket)
     vi.stubGlobal('AudioContext', constructAudioContext)
     vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } })
@@ -137,9 +141,7 @@ describe('lazy browser plugin', () => {
 
   it('composes through the official SlotRegistry and a real React render, then unloads cleanly', async () => {
     const constructSocket = vi.fn(() => { throw new Error('render must remain transport-lazy') })
-    vi.stubGlobal('window', {
-      location: { href: 'http://localhost:2026/', protocol: 'http:' },
-    })
+    vi.stubGlobal('window', browserWindow())
     vi.stubGlobal('WebSocket', constructSocket)
     ;(globalThis as Record<string, unknown>)[CLIENT_BOOT_GLOBAL] = { v: 1, route: '/guarded-voice' }
 
@@ -200,9 +202,7 @@ describe('lazy browser plugin', () => {
   })
 
   it('fails before registration when the Host bootstrap is absent or expanded', () => {
-    vi.stubGlobal('window', {
-      location: { href: 'http://localhost:2026/', protocol: 'http:' },
-    })
+    vi.stubGlobal('window', browserWindow())
     const missing = fixture()
     expect(() => client.apply(missing.ctx as never)).toThrow(/bootstrap/u)
     expect(missing.declarations).toEqual([])

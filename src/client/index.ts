@@ -8,6 +8,7 @@ import { BrowserPcmPlaybackSink } from './audio-playback.js'
 import { VoiceClientController } from './controller.js'
 import type { VoiceInjected } from './contract.js'
 import { en, NS, zh, type VoiceKey } from './locales.js'
+import { bindPageLifecycleCleanup } from './page-lifecycle.js'
 import { VoiceControl } from './VoiceControl.js'
 import { VoicePanel } from './VoicePanel.js'
 
@@ -42,7 +43,14 @@ export function apply(ctx: ClientContext): void {
   })
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'guarded-live-voice: browser dictionaries')
-  ctx.effect(() => () => { controller.dispose() }, 'guarded-live-voice: browser cleanup')
+  ctx.effect(
+    () => bindPageLifecycleCleanup(
+      window,
+      () => { controller.stop() },
+      () => { controller.dispose() },
+    ),
+    'guarded-live-voice: browser and document cleanup',
+  )
   ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
     name: 'conversation.input.left',
     id: 'guarded-live-voice',

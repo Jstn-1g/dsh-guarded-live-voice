@@ -47,3 +47,21 @@ This smoke is evidence only for packaged Host/Harness composition and the
 gateway protocol boundary. It does **not** exercise a browser microphone,
 browser playback/lifecycle behavior, Desktop packaging, or a live
 credentialed Qwen endpoint, and it does not satisfy those release gates.
+
+## Controlled Chromium raw-unload smoke
+
+`pnpm run smoke:browser:unload` builds the current client bundle and starts a
+loopback-only browser fixture. A controlled Chromium tab must open the printed
+URL, press **Start**, **Accept**, and **Record**, wait for the `recording`
+state, and then navigate that same tab to `/done`. The receipt verifies that
+raw `pagehide` invokes restartable resource teardown, stops its synthetic
+MediaStream track, requests closure of both owned browser AudioContexts,
+closes the loopback WebSocket with the documented code, and sends no binary
+audio after teardown.
+
+This smoke deliberately replaces `getUserMedia` with a synthetic Web Audio
+MediaStream and keeps all transport on IPv4 loopback. It proves document-unload
+cleanup of the exercised browser resource path only. It does **not** request a
+physical microphone, inspect a browser/OS microphone indicator, use Qwen or a
+credential, compose an official packaged DSH client, or satisfy those still-
+open release gates.
