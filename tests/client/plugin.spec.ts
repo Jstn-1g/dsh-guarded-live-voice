@@ -85,15 +85,21 @@ describe('lazy browser plugin', () => {
 
   it('registers delayed exact-session slots without opening a socket at module activation', () => {
     const constructSocket = vi.fn(() => { throw new Error('must remain lazy') })
+    const constructAudioContext = vi.fn(() => { throw new Error('must remain gesture-lazy') })
+    const getUserMedia = vi.fn(() => Promise.reject(new Error('must remain gesture-lazy')))
     vi.stubGlobal('window', {
       location: { href: 'http://localhost:2026/', protocol: 'http:' },
     })
     vi.stubGlobal('WebSocket', constructSocket)
+    vi.stubGlobal('AudioContext', constructAudioContext)
+    vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } })
     ;(globalThis as Record<string, unknown>)[CLIENT_BOOT_GLOBAL] = { v: 1, route: '/guarded-voice' }
     const f = fixture()
 
     client.apply(f.ctx as never)
     expect(constructSocket).not.toHaveBeenCalled()
+    expect(constructAudioContext).not.toHaveBeenCalled()
+    expect(getUserMedia).not.toHaveBeenCalled()
     expect(f.ctx.locale.register).toHaveBeenCalledTimes(1)
     expect(f.declarations.map(entry => entry.name)).toEqual([
       'conversation.input.left',
@@ -122,6 +128,8 @@ describe('lazy browser plugin', () => {
     const first = firstInject?.('session-1') as { hooks: { voice: unknown } } | undefined
     const second = secondInject?.('session-1') as { hooks: { voice: unknown } } | undefined
     expect(first?.hooks.voice).toBe(second?.hooks.voice)
+    expect(constructAudioContext).not.toHaveBeenCalled()
+    expect(getUserMedia).not.toHaveBeenCalled()
 
     for (const cleanup of f.cleanups.reverse()) cleanup()
     expect(f.localeCleanup).toHaveBeenCalledTimes(1)

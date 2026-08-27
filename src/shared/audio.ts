@@ -10,3 +10,9 @@ export const MAX_OUTPUT_PCM16_TURN_BYTES = 60 * OUTPUT_PCM_SAMPLE_RATE * PCM16_B
 export const MAX_VOICE_TRANSCRIPT_LENGTH = 4_096
 /** Maximum queued bulk audio on either browser or provider WebSocket. */
 export const MAX_VOICE_SOCKET_BUFFERED_BYTES = 512 * 1024
+/** Capture emits at most 100 ms of 16 kHz mono PCM16 in one browser frame. */
+export const CAPTURE_PCM16_FRAME_BYTES = INPUT_PCM_SAMPLE_RATE * PCM16_BYTES_PER_SAMPLE / 10
+/** Do not schedule more than five seconds of provider audio ahead of playback. */
+export const MAX_PLAYBACK_QUEUE_SECONDS = 5
+/** Bound live Web Audio source/event objects even if provider audio is pathologically fragmented. */
+export const MAX_PLAYBACK_QUEUE_SOURCES = 256

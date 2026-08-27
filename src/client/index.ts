@@ -3,6 +3,8 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import { CLIENT_BOOT_GLOBAL, parseGuardedVoiceClientBoot } from '../shared/boot.js'
+import { BrowserPcmCapture } from './audio-capture.js'
+import { BrowserPcmPlaybackSink } from './audio-playback.js'
 import { VoiceClientController } from './controller.js'
 import type { VoiceInjected } from './contract.js'
 import { en, NS, zh, type VoiceKey } from './locales.js'
@@ -23,7 +25,11 @@ export const inject = ['slots', 'locale']
 export function apply(ctx: ClientContext): void {
   const raw = (globalThis as Record<string, unknown>)[CLIENT_BOOT_GLOBAL]
   const boot = parseGuardedVoiceClientBoot(raw)
-  const controller = new VoiceClientController({ route: boot.route })
+  const controller = new VoiceClientController({
+    route: boot.route,
+    audioSink: new BrowserPcmPlaybackSink(),
+    captureFactory: handlers => new BrowserPcmCapture(handlers),
+  })
   const injected = (): VoiceInjected => ({
     hooks: { voice: controller },
     startVoice: sessionId => { controller.start(sessionId) },
@@ -31,6 +37,8 @@ export function apply(ctx: ClientContext): void {
     stopVoice: sessionId => { controller.stop(sessionId) },
     appendVoicePcm16: (sessionId, chunk) => { controller.appendPcm16(sessionId, chunk) },
     commitVoiceTurn: sessionId => { controller.commitTurn(sessionId) },
+    beginVoiceCapture: sessionId => { controller.beginCapture(sessionId) },
+    finishVoiceCapture: sessionId => { controller.finishCapture(sessionId) },
   })
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'guarded-live-voice: browser dictionaries')

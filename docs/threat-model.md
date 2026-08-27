@@ -38,9 +38,19 @@ prevent a low-rate peer from holding the provider capability indefinitely.
 The coordinator revalidates exact session object identity and workspace
 membership before and after provider open, before every append/commit, and
 before every provider output event is forwarded to the browser. The composer
-handoff is explicit, accepts only a completed final assistant
-transcript, and requires an unchanged draft revision, preventing silent
-overwrite of edits made while the voice turn was in flight.
+handoff is explicit, accepts only a completed final assistant transcript, and
+checks for an unchanged draft revision immediately before `setDraft`. Because
+DSH exposes no atomic compare-and-set action here, this reduces obvious stale
+replacement but cannot guarantee that a concurrent edit will never be
+overwritten.
+
+The browser capture path begins only from the explicit record gesture after
+disclosure acceptance. It uses an owned AudioWorklet, continuous resampler,
+bounded frames, a hard turn cap, and deterministic track/node/context cleanup.
+Playback preserves provider-frame order and fails closed above a five-second
+queue or 256 live source nodes. Worklet crashes, message errors, permission
+denial, delayed permission, reset races, and backpressure are
+deterministic-fake tested.
 
 Client and Host preserve the observed order of binary audio and non-cancellation
 control frames. After a terminal response, the browser retains only the bounded
@@ -48,10 +58,10 @@ completed snapshot and releases its one-shot carrier connection immediately.
 
 ## Deferred with the feature
 
-Browser microphone capture/resampling, default playback, provider cancellation
-and barge-in, continuous turns, browser CSP compatibility, packed-install
-behavior, and interruption latency remain deferred. Live handshake and audio
-behavior require credentialed functional testing. Provider retention, deletion,
+Provider cancellation and barge-in, continuous turns, browser CSP compatibility,
+packed-install behavior, and interruption latency remain deferred. Browser
+capture/playback still require a real packed Desktop/Web smoke; live handshake
+and audio behavior require credentialed functional testing. Provider retention, deletion,
 or residency claims require authoritative provider policy or contractual
 evidence and cannot be inferred from fake tests or successful live connections.
 

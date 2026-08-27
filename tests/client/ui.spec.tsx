@@ -26,6 +26,8 @@ function props(snapshot: VoiceClientSnapshot) {
     startVoice: vi.fn(),
     acceptDisclosure: vi.fn(),
     stopVoice: vi.fn(),
+    beginVoiceCapture: vi.fn(),
+    finishVoiceCapture: vi.fn(),
     input: { draftRev: 7 },
     inputActions: { setDraft },
     setDraft,
@@ -125,7 +127,7 @@ describe('guarded voice composer surfaces', () => {
     expect(failedElsewhere.startVoice).toHaveBeenCalledWith('session-1')
   })
 
-  it('describes the bounded provider transport without claiming a microphone adapter', () => {
+  it('starts microphone capture only through the exact ready-session button', () => {
     const input = props({
       phase: 'ready',
       sessionId: 'session-1',
@@ -143,10 +145,41 @@ describe('guarded voice composer surfaces', () => {
     const panel = VoicePanel(input as never)
     const text = textOf(panel)
     expect(text).toContain('Manual-turn transport ready')
-    expect(text).toContain('Ready for bounded PCM16 input')
-    const stop = elements(panel).find(element => element.type === 'button')
+    expect(text).toContain('Start one bounded microphone turn')
+    const buttons = elements(panel).filter(element => element.type === 'button')
+    const stop = buttons.find(button => textOf(button) === 'Close guarded voice setup')
+    const record = buttons.find(button => textOf(button) === 'Start recording')
+    ;(record?.props as { onClick(): void }).onClick()
+    expect(input.beginVoiceCapture).toHaveBeenCalledWith('session-1')
+    expect(input.finishVoiceCapture).not.toHaveBeenCalled()
     ;(stop?.props as { onClick(): void }).onClick()
     expect(input.stopVoice).toHaveBeenCalledWith('session-1')
+  })
+
+  it('keeps permission cancellation visible and commits recording only through its explicit button', () => {
+    const disclosure = {
+      expiresAt: 1_900_000_060_000,
+      workspaceId: 'workspace-1',
+      audioDestination: 'Alibaba Cloud Qwen realtime API' as const,
+      exportedContext: 'none' as const,
+      executionAuthority: 'none' as const,
+      providerRetention: 'not specified for Qwen realtime audio' as const,
+      currentMilestone: 'one bounded manual audio turn after acceptance' as const,
+    }
+    const preparing = props({ phase: 'preparing-audio', sessionId: 'session-1', disclosure })
+    const preparingPanel = VoicePanel(preparing as never)
+    expect(textOf(preparingPanel)).toContain('Waiting for microphone permission')
+    const cancel = elements(preparingPanel).find(element => element.type === 'button')
+    ;(cancel?.props as { onClick(): void }).onClick()
+    expect(preparing.stopVoice).toHaveBeenCalledWith('session-1')
+
+    const recording = props({ phase: 'recording', sessionId: 'session-1', disclosure })
+    const recordingPanel = VoicePanel(recording as never)
+    expect(textOf(recordingPanel)).toContain('This cannot submit the Harness composer or run tools')
+    const finish = elements(recordingPanel)
+      .find(element => element.type === 'button' && textOf(element) === 'Finish and request answer')
+    ;(finish?.props as { onClick(): void }).onClick()
+    expect(recording.finishVoiceCapture).toHaveBeenCalledWith('session-1')
   })
 
   it('keeps a failed setup inert and offers only dismiss or retry', () => {

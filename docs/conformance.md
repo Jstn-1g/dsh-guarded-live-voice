@@ -15,15 +15,18 @@ these are proven:
 - provider retention, deletion, and residency are either supported by
   authoritative provider policy or explicitly labeled unknown;
 - no secret appears in client frames, errors, fixtures, logs, or package files;
-- Qwen handshake, transcription, output audio, barge-in, and cancellation pass
-  against a live credentialed endpoint;
+- Qwen handshake, transcription, output audio, explicit manual-turn finish, and
+  cancellation pass against a live credentialed endpoint;
 - uncommitted input and in-flight responses close at their documented
   wall-clock deadlines even when a peer dribbles data below byte ceilings;
-- browser capture resamples to PCM16 mono/16 kHz only after accepted disclosure,
-  and default playback consumes PCM16 mono/24 kHz without durable storage;
+- browser capture resamples to PCM16 mono/16 kHz only after accepted disclosure
+  and a second record gesture, and default playback consumes PCM16 mono/24 kHz
+  without durable storage; these paths pass both deterministic tests and a
+  packed Desktop/Web smoke;
 - microphone, playback, sockets, timers, and buffers stop on every lifecycle
   edge;
-- accepted proposals fill but never submit the ordinary composer;
+- accepted proposals fill but never submit the ordinary composer, and the
+  non-atomic draft-revision check is not described as compare-and-set;
 - provider output fails closed if the live Session object or Workspace binding
   changes after commit, and post-commit binary frames cannot overtake commit;
 - the one-shot carrier releases its connection slot after terminal completion;

@@ -9,6 +9,8 @@ export interface VoiceInjected {
   readonly stopVoice: (sessionId: string) => void
   readonly appendVoicePcm16: (sessionId: string, chunk: Uint8Array) => void
   readonly commitVoiceTurn: (sessionId: string) => void
+  readonly beginVoiceCapture: (sessionId: string) => void
+  readonly finishVoiceCapture: (sessionId: string) => void
 }
 
 export type VoiceControlProps =

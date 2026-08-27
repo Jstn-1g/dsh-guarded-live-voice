@@ -1,10 +1,11 @@
 # Privacy boundary
 
-The branch requests no microphone permission and has no capture or playback
-implementation. After disclosure acceptance, it can open one Host-side Qwen
-session and relay only PCM16 supplied through the browser controller's bounded
-manual-turn seam. Current verification uses a deterministic local fake and no
-live credential.
+The branch requests microphone permission only from the explicit record button,
+after the separate destination/authority disclosure has been accepted. Its
+owned AudioWorklet downmixes and resamples browser audio to bounded PCM16
+mono/16 kHz frames. Provider PCM16 mono/24 kHz is scheduled through an owned,
+bounded playback context. Current verification uses deterministic browser
+dependencies and a local fake Qwen server, not a live credential.
 
 The provider request contains no DSH conversation history, files, workspace
 instructions, memory, arbitrary text input, custom system instruction, or tool
@@ -15,8 +16,9 @@ Input PCM, provider audio deltas, and transcripts are not persisted by this
 plugin. The in-memory controller and provider resources are discarded on stop,
 session change, unmount, connection failure, provider failure, or authority
 change. A completed final assistant transcript may be copied into the normal
-composer only through an explicit revision-fenced action and is never sent
-automatically.
+composer only through an explicit revision-checked action and is never sent
+automatically. The draft-revision check immediately before `setDraft` is not an
+atomic compare-and-set and must not be treated as collision-proof.
 
 These plugin-side non-persistence requirements do not imply provider zero
 retention or deletion. Exact Qwen realtime-audio retention is not currently

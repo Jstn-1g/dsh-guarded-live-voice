@@ -3,7 +3,8 @@ import css from './voice.module.css'
 
 /** User-visible disclosure and setup result; it never receives the bearer challenge. */
 export function VoicePanel({
-  sessionId, useVoice, startVoice, acceptDisclosure, stopVoice, inputActions, input, t,
+  sessionId, useVoice, startVoice, acceptDisclosure, stopVoice,
+  beginVoiceCapture, finishVoiceCapture, inputActions, input, t,
 }: VoicePanelProps) {
   const voice = useVoice(snapshot => snapshot)
   if (voice.sessionId !== String(sessionId) || voice.phase === 'idle') return null
@@ -56,9 +57,43 @@ export function VoicePanel({
         <div className={css.panelHeading}>{t('panel.ready')}</div>
         <p className={css.detail}>{t('panel.readyDetail')}</p>
         <p className={css.meta}>{voice.model}</p>
+        <div className={css.actions}>
+          <button type="button" className={css.secondaryButton} onClick={() => { stopVoice(String(sessionId)) }}>
+            {t('control.stop')}
+          </button>
+          <button type="button" className={css.primaryButton} onClick={() => { beginVoiceCapture(String(sessionId)) }}>
+            {t('panel.record')}
+          </button>
+        </div>
+      </section>
+    )
+  }
+
+  if (voice.phase === 'preparing-audio') {
+    return (
+      <section className={css.panel} role="status">
+        <div className={css.panelHeading}>{t('panel.preparingAudio')}</div>
+        <p className={css.detail}>{t('panel.permissionDetail')}</p>
         <button type="button" className={css.secondaryButton} onClick={() => { stopVoice(String(sessionId)) }}>
-          {t('control.stop')}
+          {t('panel.cancel')}
         </button>
+      </section>
+    )
+  }
+
+  if (voice.phase === 'recording') {
+    return (
+      <section className={`${css.panel} ${css.panelRecording}`} role="status">
+        <div className={css.panelHeading}>{t('panel.recording')}</div>
+        <p className={css.detail}>{t('panel.recordingDetail')}</p>
+        <div className={css.actions}>
+          <button type="button" className={css.secondaryButton} onClick={() => { stopVoice(String(sessionId)) }}>
+            {t('panel.cancel')}
+          </button>
+          <button type="button" className={css.primaryButton} onClick={() => { finishVoiceCapture(String(sessionId)) }}>
+            {t('panel.finishTurn')}
+          </button>
+        </div>
       </section>
     )
   }

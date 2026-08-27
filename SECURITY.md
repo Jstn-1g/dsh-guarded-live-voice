@@ -22,8 +22,10 @@ private transcripts, or private workspace content in a public issue.
 - The v0.3 development path permits one bounded manual PCM turn after accepted
   disclosure. The package does not durably persist raw audio or partial
   provider deltas, and releases its owned transient resources on lifecycle
-  teardown. An integrator that supplies a custom PCM sink owns that sink's
-  retention behavior.
+  teardown. The included browser path requests microphone permission only from
+  its explicit record gesture, resamples through an owned AudioWorklet, and
+  schedules bounded PCM playback without durable storage. An integrator that
+  supplies a custom PCM sink owns that sink's retention behavior.
 - Invalid, oversized, stale, ambiguous, or out-of-order input fails closed.
 
 When explicitly configured with a DashScope workspace and credential reference,
@@ -32,14 +34,17 @@ acceptance and stream only bounded PCM input. It exports no DSH history, files,
 workspace instructions, arbitrary text input, system instruction, or tool
 schema. Provider transcript/audio output is revalidated against the exact live
 session and workspace lease before it reaches the browser. Completed text stays
-proposal-only: an explicit, draft-revision-fenced action may fill the composer,
-but no path submits a prompt or invokes a tool.
+proposal-only: an explicit action may fill the composer after a best-effort
+draft-revision check, but no path submits a prompt or invokes a tool. The
+available `setDraft` action is not an atomic compare-and-set, so this check is
+not a collision-proof overwrite guarantee.
 
 The package-root `openQwenManualTurn` primitive owns provider destination,
 protocol, and resource controls. Direct Host-side callers must compose an
 equivalent exact-authority and consumed-consent boundary; the registered
-`apply` path does so. Browser microphone capture and default playback are not
-included in this milestone.
+`apply` path does so. The included capture/playback implementation is
+deterministic-fake tested but not yet proven in a packed DSH Desktop install or
+against a credentialed Qwen endpoint.
 
 ## Known limitation
 

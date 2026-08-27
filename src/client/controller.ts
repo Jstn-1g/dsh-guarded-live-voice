@@ -14,6 +14,8 @@ export type VoiceClientPhase =
   | 'awaiting-consent'
   | 'authorizing'
   | 'ready'
+  | 'preparing-audio'
+  | 'recording'
   | 'responding'
   | 'completed'
   | 'error'
@@ -60,11 +62,28 @@ interface VoiceSocket {
 }
 
 export interface VoiceAudioSink {
+  /** Prepare browser playback from the same explicit gesture that starts capture. */
+  prepare(): Promise<void>
   /** Consume one bounded PCM16 mono/24 kHz provider chunk. */
   write(pcm24: Uint8Array): void
   /** Drop queued playback when the exact voice lifecycle stops or fails. */
   reset(): void
 }
+
+export interface VoiceAudioCapture {
+  /** Request permission and begin owned microphone capture. */
+  start(): Promise<void>
+  /** Stop every capture resource, optionally flushing the final bounded frame. */
+  stop(flush?: boolean): void
+}
+
+export interface VoiceAudioCaptureHandlers {
+  readonly onChunk: (pcm16: Uint8Array) => void
+  readonly onLimit: () => void
+  readonly onError: (error: Error) => void
+}
+
+export type VoiceAudioCaptureFactory = (handlers: VoiceAudioCaptureHandlers) => VoiceAudioCapture
 
 interface ActiveSocket {
   readonly socket: VoiceSocket
@@ -76,6 +95,12 @@ interface ActiveSocket {
   readonly onClose: (event: CloseEvent) => void
 }
 
+interface ActiveCapture {
+  readonly capture: VoiceAudioCapture
+  readonly generation: number
+  readonly sessionId: string
+}
+
 export interface VoiceClientControllerOptions {
   readonly route: string
   readonly location?: Pick<Location, 'href' | 'protocol'>
@@ -84,13 +109,14 @@ export interface VoiceClientControllerOptions {
   readonly schedule?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>
   readonly cancelScheduled?: (timer: ReturnType<typeof setTimeout>) => void
   readonly audioSink?: VoiceAudioSink
+  readonly captureFactory?: VoiceAudioCaptureFactory
 }
 
 const IDLE: VoiceClientSnapshot = { phase: 'idle' }
 const SOCKET_CONNECTING = 0
 const SOCKET_OPEN = 1
 
-/** Browser-side disclosure coordinator. Capture and default playback remain absent. */
+/** Browser-side disclosure, bounded capture, and one-turn playback coordinator. */
 export class VoiceClientController {
   private snapshot: VoiceClientSnapshot = IDLE
   private readonly listeners = new Set<() => void>()
@@ -106,6 +132,8 @@ export class VoiceClientController {
   private generation = 0
   private disposed = false
   private readonly audioSink: VoiceAudioSink
+  private readonly captureFactory: VoiceAudioCaptureFactory | undefined
+  private capture: ActiveCapture | undefined
   private inputBytes = 0
   private outputBytes = 0
 
@@ -119,7 +147,8 @@ export class VoiceClientController {
     this.now = options.now ?? Date.now
     this.schedule = options.schedule ?? ((callback, delayMs) => setTimeout(callback, delayMs))
     this.cancelScheduled = options.cancelScheduled ?? (timer => { clearTimeout(timer) })
-    this.audioSink = options.audioSink ?? { write: () => {}, reset: () => {} }
+    this.audioSink = options.audioSink ?? { prepare: () => Promise.resolve(), write: () => {}, reset: () => {} }
+    this.captureFactory = options.captureFactory
   }
 
   /** Return the identity-stable view until one lifecycle fact changes. */
@@ -168,8 +197,68 @@ export class VoiceClientController {
     if (this.disposed
       || this.snapshot.phase !== 'ready'
       || this.snapshot.sessionId !== sessionId
+      || active?.sessionId !== sessionId) return
+    this.relayPcm16(active, chunk)
+  }
+
+  /** Start microphone capture only from the exact ready Session's user gesture. */
+  beginCapture(sessionId: string): void {
+    const active = this.active
+    if (this.disposed
+      || this.snapshot.phase !== 'ready'
+      || this.snapshot.sessionId !== sessionId
       || active?.sessionId !== sessionId
       || active.socket.readyState !== SOCKET_OPEN) return
+    if (this.captureFactory === undefined) {
+      this.failedSocket(active, new Error('browser microphone capture is unavailable'))
+      return
+    }
+
+    let record: ActiveCapture | undefined
+    let capture: VoiceAudioCapture
+    try {
+      capture = this.captureFactory({
+        onChunk: chunk => { if (record !== undefined) this.capturedPcm16(record, chunk) },
+        onLimit: () => { if (record !== undefined) this.captureLimit(record) },
+        onError: error => { if (record !== undefined) this.captureError(record, error) },
+      })
+    } catch (error) {
+      this.failedSocket(active, error)
+      return
+    }
+    record = { capture, generation: this.generation, sessionId }
+    this.capture = record
+    this.publish({ ...this.snapshot, phase: 'preparing-audio' })
+    // Snapshot subscribers run synchronously and may stop, dispose, or replace
+    // this lifecycle. Revalidate after publication so a cancelled gesture can
+    // never start playback or request microphone permission on its return path.
+    if (!this.isCaptureActive(active, record) || this.getSnapshot().phase !== 'preparing-audio') return
+    void this.prepareCapture(active, record)
+  }
+
+  /** Finish the explicit microphone turn and ask only the provider for an answer. */
+  finishCapture(sessionId: string): void {
+    const active = this.active
+    const record = this.capture
+    if (this.disposed
+      || this.snapshot.phase !== 'recording'
+      || this.snapshot.sessionId !== sessionId
+      || active?.sessionId !== sessionId
+      || record?.sessionId !== sessionId
+      || record.generation !== this.generation) return
+    try {
+      record.capture.stop(true)
+    } catch (error) {
+      this.failedSocket(active, error)
+      return
+    }
+    if (this.capture === record) this.capture = undefined
+    if (!this.isActive(active)) return
+    this.commitActiveTurn(active, ['recording'])
+  }
+
+  private relayPcm16(active: ActiveSocket, chunk: Uint8Array): void {
+    if (active.socket.readyState !== SOCKET_OPEN) return
     if (chunk.byteLength === 0
       || chunk.byteLength > MAX_INPUT_PCM16_CHUNK_BYTES
       || chunk.byteLength % 2 !== 0
@@ -198,6 +287,13 @@ export class VoiceClientController {
       || this.snapshot.sessionId !== sessionId
       || active?.sessionId !== sessionId
       || active.socket.readyState !== SOCKET_OPEN
+      || this.inputBytes === 0) return
+    this.commitActiveTurn(active, ['ready'])
+  }
+
+  private commitActiveTurn(active: ActiveSocket, allowedPhases: readonly VoiceClientPhase[]): void {
+    if (!this.isActive(active)
+      || !allowedPhases.includes(this.snapshot.phase)
       || this.inputBytes === 0) return
     try {
       const commit = JSON.stringify({ v: WIRE_VERSION, type: 'turn.commit' })
@@ -433,9 +529,63 @@ export class VoiceClientController {
   }
 
   private resetTurn(): void {
+    const capture = this.capture
+    this.capture = undefined
+    if (capture !== undefined) {
+      try { capture.capture.stop(false) } catch {}
+    }
     this.inputBytes = 0
     this.outputBytes = 0
     try { this.audioSink.reset() } catch {}
+  }
+
+  private async prepareCapture(active: ActiveSocket, record: ActiveCapture): Promise<void> {
+    try {
+      await Promise.all([this.audioSink.prepare(), record.capture.start()])
+    } catch (error) {
+      const stillActive = this.isCaptureActive(active, record)
+      try { record.capture.stop(false) } catch {}
+      if (this.capture === record) this.capture = undefined
+      if (stillActive) this.failedSocket(active, error)
+      return
+    }
+    if (!this.isCaptureActive(active, record) || this.snapshot.phase !== 'preparing-audio') {
+      try { record.capture.stop(false) } catch {}
+      if (this.capture === record) this.capture = undefined
+      return
+    }
+    this.publish({ ...this.snapshot, phase: 'recording' })
+  }
+
+  private capturedPcm16(record: ActiveCapture, chunk: Uint8Array): void {
+    const active = this.active
+    if (active === undefined
+      || !this.isCaptureActive(active, record)
+      || (this.snapshot.phase !== 'preparing-audio' && this.snapshot.phase !== 'recording')) return
+    this.relayPcm16(active, chunk)
+  }
+
+  private captureLimit(record: ActiveCapture): void {
+    const active = this.active
+    if (active === undefined
+      || !this.isCaptureActive(active, record)
+      || (this.snapshot.phase !== 'preparing-audio' && this.snapshot.phase !== 'recording')) return
+    this.capture = undefined
+    this.commitActiveTurn(active, ['preparing-audio', 'recording'])
+  }
+
+  private captureError(record: ActiveCapture, error: Error): void {
+    const active = this.active
+    if (active === undefined || !this.isCaptureActive(active, record)) return
+    this.capture = undefined
+    this.failedSocket(active, error)
+  }
+
+  private isCaptureActive(active: ActiveSocket, record: ActiveCapture): boolean {
+    return this.isActive(active)
+      && this.capture === record
+      && record.generation === this.generation
+      && record.sessionId === active.sessionId
   }
 
   private isActive(active: ActiveSocket): boolean {

@@ -50,6 +50,10 @@
   border-color: var(--dsw-alias-state-success-primary);
 }
 
+.panelRecording {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
 .eyebrow {
   color: var(--dsw-alias-brand-primary);
   font-size: 11px;

@@ -1,8 +1,9 @@
 # dsh-guarded-live-voice
 
 A guarded DeepSeek Harness voice foundation with an exact-session Host boundary,
-a lazy browser disclosure UI, and one bounded manual-turn transport. Browser
-microphone capture and audible playback are not implemented.
+a lazy browser disclosure UI, and one bounded manual audio turn. The unreleased
+v0.3 branch includes explicit-gesture microphone capture and bounded playback;
+credentialed provider and packed Desktop behavior are not yet proven.
 
 ## Current status
 
@@ -41,16 +42,24 @@ same consumed-consent and authority lease:
   commit, including session-object reuse and workspace-move rejection; and
 - a final assistant-text “Use as draft” action that is available only after a
   completed response with a final transcript and only while the composer
-  revision captured at consent remains unchanged. It never submits.
+  revision captured at consent remains unchanged. This is a best-effort check
+  immediately before `setDraft`, not an atomic compare-and-set. It never
+  submits;
+- an explicit “Start recording” gesture that requests microphone permission,
+  an AudioWorklet that downmixes and continuously resamples browser audio to
+  PCM16 mono/16 kHz, 100 ms bounded input frames, and deterministic cleanup on
+  denial, cancellation, cap, processing failure, session failure, or unload;
+  and
+- ordered PCM16 mono/24 kHz Web Audio playback with five-second and 256-live-
+  source ceilings, reset ownership, and fail-closed backpressure.
 
-The branch still does **not** request microphone permission, capture or resample
-browser audio, provide default audio playback, support continuous conversation
-or barge-in, send DSH history/files/instructions, call tools, submit the
-composer, or write custom session events. Its browser controller exposes a
-bounded PCM seam and an output sink for a later audited capture/playback
-adapter. Verification uses a deterministic local fake Qwen server; no
-credential-backed provider smoke is claimed. This is not a marketplace-ready
-voice product and is not “ChatGPT Live parity.”
+The branch still does **not** support continuous conversation or barge-in, send
+DSH history/files/instructions, call tools, submit the composer, or write custom
+session events. Capture, resampling, framing, cleanup, playback ordering, and
+backpressure are deterministic-fake tested. Provider verification still uses a
+local fake Qwen server: no credential-backed audio roundtrip, packed DSH install,
+or Desktop browser smoke is claimed. This is not a marketplace-ready voice
+product and is not “ChatGPT Live parity.”
 
 The disclosure flow is user-visible, but it is not cryptographic proof that a
 human accepted it. The one-shot challenge proves control of that local client
@@ -63,9 +72,11 @@ a human or resist a malicious same-user local process.
 Only PCM supplied through the bounded browser-controller seam after accepted
 disclosure can reach Qwen. No DSH history, files, workspace instructions,
 memory, arbitrary text, system instruction, or tool schema crosses that
-boundary. Provider text can become an ordinary composer draft only through the
-explicit, revision-fenced button; the plugin cannot submit a message, call a
-tool, write a custom session event, or execute work.
+boundary. Provider text can become an ordinary composer draft only through an
+explicit button and a best-effort draft-revision check. The current DSH action
+is not an atomic compare-and-set, so the check is not a collision-proof
+overwrite guard. The plugin cannot submit a message, call a tool, write a
+custom session event, or execute work.
 
 ## Development
 
@@ -99,8 +110,9 @@ need an Alibaba Cloud Model Studio workspace id before provider authorization:
 
 After accepted disclosure, the development branch opens the allowlisted Qwen
 endpoint for one exact-session manual turn and resolves the credential only on
-the Host. Without a browser capture adapter, the included UI cannot itself feed
-microphone audio into that turn.
+the Host. A second explicit button starts browser capture; finishing it commits
+only that bounded provider turn. This path is fake-tested but still needs a
+packed Desktop smoke and credential-backed Qwen roundtrip.
 
 Configure the credential through DSH's credential provider. Never put a secret
 value in `cordis.patch.yml`, browser storage, an issue, or a log.

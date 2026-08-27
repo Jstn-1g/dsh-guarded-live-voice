@@ -32,14 +32,25 @@ The current design has an ordered Host/browser control path:
 11. After provider readiness, `gateway` accepts bounded binary PCM frames and
     one `turn.commit` control. It relays only complete transcript snapshots,
     bounded PCM output frames, and one terminal status.
-12. The browser controller exposes explicit PCM append/commit seams and an
-    injectable PCM output sink. It contains no microphone or default playback
-    implementation in this branch.
-13. A completed final assistant transcript can be copied to the exact session's
+12. A second explicit button gesture creates the browser audio context and asks
+    for microphone permission. An owned AudioWorklet downmixes the input; the
+    client preserves resampler phase across callbacks, emits bounded PCM16
+    mono/16 kHz frames, flushes before explicit commit, and releases tracks,
+    nodes, contexts, and late permission results on every terminal path.
+13. Provider PCM16 mono/24 kHz output is converted and scheduled in protocol
+    order. Playback is prepared by the same record gesture, permits at most five
+    seconds of queued audio and 256 live source nodes, and resets every
+    scheduled source on lifecycle teardown.
+14. A completed final assistant transcript can be copied to the exact session's
     composer only if its draft revision still equals the revision captured at
-    disclosure acceptance. Conflict, cancellation, or incomplete transcript
-    leaves the composer untouched; no code path calls submit.
+    disclosure acceptance at the moment of the button handler's check. DSH's
+    current `setDraft` action provides no atomic compare-and-set, so this is a
+    best-effort conflict check rather than a collision-proof guarantee.
+    Conflict, cancellation, or incomplete transcript leaves the composer
+    untouched; no code path calls submit.
 
-All provider behavior is fake-server tested. Credentialed Qwen behavior,
-browser capture/resampling, audible playback, packed DSH installation, and
-latency remain release gates.
+All provider behavior is fake-server tested. Capture/resampling and audible
+playback are deterministic dependency-fake tested, including permission,
+worklet-crash, cap, ordering, backpressure, and teardown paths. Credentialed
+Qwen behavior, a packed DSH Desktop/Web smoke, browser CSP compatibility, and
+measured latency remain release gates.
