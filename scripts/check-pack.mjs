@@ -107,6 +107,7 @@ if (missing.length > 0) {
 const forbidden = [...names].filter(name =>
   name.startsWith('tests/')
   || name.startsWith('src/')
+  || name.startsWith('scripts/')
   || name === '.env'
   || name === 'lib/client.js.map')
 if (forbidden.length > 0) {

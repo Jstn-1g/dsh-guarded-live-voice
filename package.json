@@ -68,6 +68,7 @@
     "test:coverage": "vitest run --coverage",
     "publint": "publint",
     "pack:check": "node scripts/check-pack.mjs",
+    "smoke:harness:fake-qwen": "node scripts/smoke-harness-fake-qwen.mjs",
     "check": "pnpm run typecheck && pnpm run test && pnpm run build && pnpm run publint && pnpm run pack:check",
     "prepack": "pnpm run build"
   },

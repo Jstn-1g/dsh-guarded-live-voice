@@ -32,3 +32,18 @@ these are proven:
 - the one-shot carrier releases its connection slot after terminal completion;
 - build, packed-install, and current DSH profile smokes pass; and
 - documentation states only behavior demonstrated by those gates.
+
+## Deterministic Harness composition smoke
+
+`pnpm run smoke:harness:fake-qwen` packs the current plugin, installs that
+tarball through the official DSH CLI into a disposable profile, composes it
+with the official Web bundle, and exercises one disclosure-bound manual turn
+through the real workspace/session RPC and `/guarded-voice` gateway. It uses a
+fail-closed test loader and a deterministic loopback WebSocket peer; inherited
+secret-like environment variables are removed, no real provider credential is
+used, and no external provider connection is allowed.
+
+This smoke is evidence only for packaged Host/Harness composition and the
+gateway protocol boundary. It does **not** exercise a browser microphone,
+browser playback/lifecycle behavior, Desktop packaging, or a live
+credentialed Qwen endpoint, and it does not satisfy those release gates.
