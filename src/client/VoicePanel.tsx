@@ -4,7 +4,8 @@ import css from './voice.module.css'
 /** User-visible disclosure and setup result; it never receives the bearer challenge. */
 export function VoicePanel({
   sessionId, useVoice, startVoice, acceptDisclosure, stopVoice,
-  beginVoiceCapture, finishVoiceCapture, inputActions, input, t,
+  beginVoiceCapture, finishVoiceCapture, getVoiceSnapshot,
+  isComposerBindingCurrent, claimVoiceDraftHandoff, inputActions, input, t,
 }: VoicePanelProps) {
   const voice = useVoice(snapshot => snapshot)
   if (voice.sessionId !== String(sessionId) || voice.phase === 'idle') return null
@@ -99,7 +100,9 @@ export function VoicePanel({
   }
 
   if (voice.phase === 'responding' || voice.phase === 'completed') {
-    const draftConflict = voice.draftRevision !== undefined && input.draftRev !== voice.draftRevision
+    const composerBindingCurrent = isComposerBindingCurrent(String(sessionId), inputActions)
+    const draftConflict = (voice.draftRevision !== undefined && input.draftRev !== voice.draftRevision)
+      || !composerBindingCurrent
     return (
       <section className={`${css.panel} ${voice.phase === 'completed' ? css.panelReady : ''}`} role="status">
         <div className={css.panelHeading}>
@@ -122,22 +125,39 @@ export function VoicePanel({
           </button>
           {voice.phase === 'completed'
             && voice.turnStatus === 'completed'
-            && voice.assistantTranscriptFinal === true
-            && voice.assistantTranscript !== ''
+            && voice.userTranscriptFinal === true
+            && voice.userTranscript !== undefined
+            && voice.userTranscript.trim() !== ''
             && voice.draftRevision !== undefined
             ? (
                 <button
                   type="button"
                   className={css.primaryButton}
-                  disabled={input.draftRev !== voice.draftRevision}
-                  title={input.draftRev === voice.draftRevision ? undefined : t('panel.draftConflict')}
+                  disabled={input.draftRev !== voice.draftRevision || !composerBindingCurrent}
+                  title={input.draftRev === voice.draftRevision && composerBindingCurrent
+                    ? undefined
+                    : t('panel.draftConflict')}
                   onClick={() => {
-                    if (input.draftRev === voice.draftRevision) {
-                      inputActions.setDraft(voice.assistantTranscript ?? '')
+                    const current = getVoiceSnapshot()
+                    if (current.phase === 'completed'
+                      && current.sessionId === String(sessionId)
+                      && current.turnStatus === 'completed'
+                      && current.userTranscriptFinal === true
+                      && current.userTranscript !== undefined
+                      && current.userTranscript.trim() !== ''
+                      && current.userTranscript === voice.userTranscript
+                      && current.draftRevision === voice.draftRevision
+                      && input.draftRev === current.draftRevision
+                      && claimVoiceDraftHandoff(
+                        String(sessionId),
+                        inputActions,
+                        current.draftRevision,
+                      )) {
+                      inputActions.setDraft(current.userTranscript)
                     }
                   }}
                 >
-                  {t('panel.useAsDraft')}
+                  {t('panel.useUserAsDraft')}
                 </button>
               )
             : null}
@@ -167,7 +187,7 @@ export function VoicePanel({
           {t('panel.cancel')}
         </button>
         <button type="button" className={css.primaryButton} onClick={() => {
-          acceptDisclosure(String(sessionId), input.draftRev)
+          acceptDisclosure(String(sessionId), input.draftRev, inputActions)
         }}>
           {t('panel.accept')}
         </button>

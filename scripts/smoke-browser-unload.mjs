@@ -202,9 +202,12 @@ function page() {
       const sessionId = '${SESSION_ID}'
       const phase = document.querySelector('#phase')
       const update = () => {
-        state.phase = injected.hooks.voice.getSnapshot().phase
-        phase.textContent = state.phase
+        const snapshot = injected.hooks.voice.getSnapshot()
+        state.phase = snapshot.phase
+        state.voiceError = snapshot.error ?? null
+        phase.textContent = snapshot.error === undefined ? state.phase : state.phase + ': ' + snapshot.error
         document.body.dataset.phase = state.phase
+        document.body.dataset.voiceError = snapshot.error ?? ''
         document.body.dataset.audioFrames = String(state.audioFramesSent)
       }
       injected.hooks.voice.subscribe(update)

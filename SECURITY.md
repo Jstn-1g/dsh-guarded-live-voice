@@ -33,11 +33,15 @@ the registered v0.3 development path can connect to Qwen after exact disclosure
 acceptance and stream only bounded PCM input. It exports no DSH history, files,
 workspace instructions, arbitrary text input, system instruction, or tool
 schema. Provider transcript/audio output is revalidated against the exact live
-session and workspace lease before it reaches the browser. Completed text stays
-proposal-only: an explicit action may fill the composer after a best-effort
-draft-revision check, but no path submits a prompt or invokes a tool. The
-available `setDraft` action is not an atomic compare-and-set, so this check is
-not a collision-proof overwrite guarantee.
+session and workspace lease before it reaches the browser. Completed assistant
+text stays proposal-only. An explicit action may copy only the final user
+transcript into the exact current Session's composer after re-reading the voice
+lifecycle and matching both the draft revision and the opaque per-Session
+composer action identity captured at consent. That one-shot binding blocks a
+replacement Session that reuses the same textual ID, but no path submits a
+prompt or invokes a tool. The available `setDraft` action is not an atomic
+compare-and-set with concurrent typing, so this is not a collision-proof
+overwrite guarantee.
 
 The package-root `openQwenManualTurn` primitive owns provider destination,
 protocol, and resource controls. Direct Host-side callers must compose an

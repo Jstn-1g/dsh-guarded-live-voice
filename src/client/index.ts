@@ -33,8 +33,15 @@ export function apply(ctx: ClientContext): void {
   })
   const injected = (): VoiceInjected => ({
     hooks: { voice: controller },
+    getVoiceSnapshot: controller.getSnapshot,
     startVoice: sessionId => { controller.start(sessionId) },
-    acceptDisclosure: (sessionId, draftRevision) => { controller.accept(sessionId, draftRevision) },
+    acceptDisclosure: (sessionId, draftRevision, composerIdentity) => {
+      controller.accept(sessionId, draftRevision, composerIdentity)
+    },
+    isComposerBindingCurrent: (sessionId, composerIdentity) =>
+      controller.isComposerBindingCurrent(sessionId, composerIdentity),
+    claimVoiceDraftHandoff: (sessionId, composerIdentity, draftRevision) =>
+      controller.claimDraftHandoff(sessionId, composerIdentity, draftRevision),
     stopVoice: sessionId => { controller.stop(sessionId) },
     appendVoicePcm16: (sessionId, chunk) => { controller.appendPcm16(sessionId, chunk) },
     commitVoiceTurn: sessionId => { controller.commitTurn(sessionId) },

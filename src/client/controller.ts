@@ -101,6 +101,11 @@ interface ActiveCapture {
   readonly sessionId: string
 }
 
+interface ComposerBinding {
+  readonly sessionId: string
+  readonly identity: object
+}
+
 export interface VoiceClientControllerOptions {
   readonly route: string
   readonly location?: Pick<Location, 'href' | 'protocol'>
@@ -140,6 +145,7 @@ export class VoiceClientController {
   private capture: ActiveCapture | undefined
   private inputBytes = 0
   private outputBytes = 0
+  private composerBinding: ComposerBinding | undefined
 
   constructor(private readonly options: VoiceClientControllerOptions) {
     this.location = options.location ?? window.location
@@ -320,7 +326,7 @@ export class VoiceClientController {
   }
 
   /** Consume the hidden one-shot challenge after the visible acceptance gesture. */
-  accept(sessionId: string, draftRevision?: number): void {
+  accept(sessionId: string, draftRevision?: number, composerIdentity?: object): void {
     if (this.disposed
       || this.snapshot.phase !== 'awaiting-consent'
       || this.snapshot.sessionId !== sessionId
@@ -346,6 +352,9 @@ export class VoiceClientController {
       this.failedSocket(active, error)
       return
     }
+    this.composerBinding = composerIdentity === undefined
+      ? undefined
+      : { sessionId, identity: composerIdentity }
     this.publish({
       phase: 'authorizing',
       sessionId,
@@ -354,6 +363,30 @@ export class VoiceClientController {
         ? { draftRevision }
         : {}),
     })
+  }
+
+  /** Whether this lifecycle still owns the exact per-Session composer action face accepted by the user. */
+  isComposerBindingCurrent(sessionId: string, composerIdentity: object): boolean {
+    const binding = this.composerBinding
+    return !this.disposed
+      && this.snapshot.sessionId === sessionId
+      && binding?.sessionId === sessionId
+      && binding.identity === composerIdentity
+  }
+
+  /** Atomically consume the exact composer binding before one explicit draft handoff. */
+  claimDraftHandoff(sessionId: string, composerIdentity: object, draftRevision: number): boolean {
+    const current = this.snapshot
+    if (!this.isComposerBindingCurrent(sessionId, composerIdentity)
+      || current.phase !== 'completed'
+      || current.turnStatus !== 'completed'
+      || current.userTranscriptFinal !== true
+      || current.userTranscript === undefined
+      || current.userTranscript.trim() === ''
+      || current.draftRevision !== draftRevision) return false
+
+    this.composerBinding = undefined
+    return true
   }
 
   /** Stop only the addressed setup; a different mounted Session cannot cancel it. */
@@ -540,6 +573,7 @@ export class VoiceClientController {
     }
     this.inputBytes = 0
     this.outputBytes = 0
+    this.composerBinding = undefined
     try { this.audioSink.reset() } catch {}
   }
 

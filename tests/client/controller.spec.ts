@@ -235,11 +235,13 @@ describe('browser voice controller', () => {
 
   it('relays one exact-session bounded PCM turn and accepts only ordered streamed output', () => {
     const f = fixture()
+    const composerIdentity = {}
+    const sameIdReplacementIdentity = {}
     f.controller.start('session-1')
     expect(f.socket.binaryType).toBe('arraybuffer')
     f.socket.open()
     f.socket.message(consentEvent())
-    f.controller.accept('session-1', 9)
+    f.controller.accept('session-1', 9, composerIdentity)
     f.socket.message(readyEvent())
     expect(f.controller.getSnapshot()).toMatchObject({ phase: 'ready', draftRevision: 9 })
 
@@ -275,6 +277,12 @@ describe('browser voice controller', () => {
       draftRevision: 9,
     })
     expect(f.socket.closes).toEqual([{ code: 1000, reason: 'turn complete' }])
+    expect(f.controller.isComposerBindingCurrent('session-1', sameIdReplacementIdentity)).toBe(false)
+    expect(f.controller.claimDraftHandoff('session-1', sameIdReplacementIdentity, 9)).toBe(false)
+    expect(f.controller.isComposerBindingCurrent('session-1', composerIdentity)).toBe(true)
+    expect(f.controller.claimDraftHandoff('session-1', composerIdentity, 8)).toBe(false)
+    expect(f.controller.claimDraftHandoff('session-1', composerIdentity, 9)).toBe(true)
+    expect(f.controller.claimDraftHandoff('session-1', composerIdentity, 9)).toBe(false)
     f.controller.appendPcm16('session-1', new Uint8Array([5, 0]))
     expect(f.socket.binary).toHaveLength(1)
     f.controller.stop('session-1')

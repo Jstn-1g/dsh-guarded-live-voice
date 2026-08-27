@@ -40,10 +40,13 @@ same consumed-consent and authority lease:
   fail-closed parsing, and deterministic terminal teardown;
 - authority revalidation after provider open and before every audio append or
   commit, including session-object reuse and workspace-move rejection; and
-- a final assistant-text “Use as draft” action that is available only after a
-  completed response with a final transcript and only while the composer
-  revision captured at consent remains unchanged. This is a best-effort check
-  immediately before `setDraft`, not an atomic compare-and-set. It never
+- a final user-transcript “Use my transcript as draft” action that is available
+  only after a completed response with a final user transcript and while the
+  composer revision and opaque, per-Session action identity captured at consent
+  remain unchanged. The binding is consumed immediately before `setDraft`, so
+  even same-text-ID Session replacement and repeated clicks fail closed. The
+  current voice lifecycle and exact Session are also re-read at the click. This
+  still is not an atomic compare-and-set with concurrent typing. It never
   submits;
 - an explicit “Start recording” gesture that requests microphone permission,
   an AudioWorklet that downmixes and continuously resamples browser audio to
@@ -56,10 +59,11 @@ same consumed-consent and authority lease:
 The branch still does **not** support continuous conversation or barge-in, send
 DSH history/files/instructions, call tools, submit the composer, or write custom
 session events. Capture, resampling, framing, cleanup, playback ordering, and
-backpressure are deterministic-fake tested. Provider verification still uses a
-local fake Qwen server: no credential-backed audio roundtrip, packed DSH install,
-or Desktop browser smoke is claimed. This is not a marketplace-ready voice
-product and is not “ChatGPT Live parity.”
+backpressure are deterministic-fake tested. Packed composition with the
+official Harness is verified against a local fake Qwen server; no
+credential-backed audio roundtrip, physical-device audio, or packaged Desktop
+browser smoke is claimed. This is not a marketplace-ready voice product and is
+not “ChatGPT Live parity.”
 
 The disclosure flow is user-visible, but it is not cryptographic proof that a
 human accepted it. The one-shot challenge proves control of that local client
@@ -72,11 +76,15 @@ a human or resist a malicious same-user local process.
 Only PCM supplied through the bounded browser-controller seam after accepted
 disclosure can reach Qwen. No DSH history, files, workspace instructions,
 memory, arbitrary text, system instruction, or tool schema crosses that
-boundary. Provider text can become an ordinary composer draft only through an
-explicit button and a best-effort draft-revision check. The current DSH action
-is not an atomic compare-and-set, so the check is not a collision-proof
-overwrite guard. The plugin cannot submit a message, call a tool, write a
-custom session event, or execute work.
+boundary. The final user transcript can become an ordinary composer draft only
+through an explicit button, an exact-current-Session recheck, the opaque
+per-Session composer action identity captured at consent, and a draft-revision
+check. The identity binding is one-shot and blocks same-ID Session replacement.
+Assistant text remains a voice preview and is never inserted by that action.
+The current DSH action is not an atomic
+compare-and-set, so the check is not a collision-proof overwrite guard. The
+plugin cannot submit a message, call a tool, write a custom session event, or
+execute work.
 
 ## Development
 
