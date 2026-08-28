@@ -1,3 +1,4 @@
+// Compatibility-stable protocol key. This is intentionally not the product name.
 export const CLIENT_BOOT_GLOBAL = '__DSH_GUARDED_LIVE_VOICE__' as const
 export const CLIENT_BOOT_VERSION = 1 as const
 
@@ -19,7 +20,7 @@ export function parseGuardedVoiceClientBoot(value: unknown): GuardedVoiceClientB
     || !/^\/[A-Za-z0-9._~-]+$/u.test(value.route)
     || value.route === '/.'
     || value.route === '/..') {
-    throw new TypeError('guarded voice browser bootstrap is invalid')
+    throw new TypeError('DSH Live Voice browser bootstrap is invalid')
   }
   return { v: CLIENT_BOOT_VERSION, route: value.route }
 }

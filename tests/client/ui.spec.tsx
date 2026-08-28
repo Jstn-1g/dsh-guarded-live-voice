@@ -40,7 +40,7 @@ function props(snapshot: VoiceClientSnapshot) {
   }
 }
 
-describe('guarded voice composer surfaces', () => {
+describe('DSH Live Voice composer surfaces', () => {
   it('renders the exact disclosure and accepts only through its explicit button', () => {
     const snapshot: VoiceClientSnapshot = {
       phase: 'awaiting-consent',
@@ -152,7 +152,7 @@ describe('guarded voice composer surfaces', () => {
     expect(text).toContain('Manual-turn transport ready')
     expect(text).toContain('Start one bounded microphone turn')
     const buttons = elements(panel).filter(element => element.type === 'button')
-    const stop = buttons.find(button => textOf(button) === 'Close guarded voice setup')
+    const stop = buttons.find(button => textOf(button) === 'Close DSH Live Voice')
     const record = buttons.find(button => textOf(button) === 'Start recording')
     ;(record?.props as { onClick(): void }).onClick()
     expect(input.beginVoiceCapture).toHaveBeenCalledWith('session-1')

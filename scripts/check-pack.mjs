@@ -62,7 +62,7 @@ runInNewContext(clientArtifact, {
   },
 })
 assert.equal(styles.length, 0, 'client wrapper must have no style side effect before materialization')
-assert.equal(registration?.id, 'dsh-guarded-live-voice', 'client wrapper id must equal the package name')
+assert.equal(registration?.id, 'dsh-live-voice', 'client wrapper id must equal the package name')
 assert.equal(typeof registration?.factory, 'function', 'client wrapper must register one factory')
 const moduleRequests = []
 const loadFace = () => registration.factory((specifier) => {
@@ -72,8 +72,8 @@ const loadFace = () => registration.factory((specifier) => {
 })
 assert.deepEqual(Object.keys(loadFace()).sort(), ['apply', 'inject'])
 assert.equal(styles.length, 1, 'materialization must inject one tagged stylesheet')
-assert.equal(styles[0].dataset.plugin, 'dsh-guarded-live-voice')
-assert.equal(styles[0].dataset.pluginCss, 'dsh-guarded-live-voice/voice.module.css')
+assert.equal(styles[0].dataset.plugin, 'dsh-live-voice')
+assert.equal(styles[0].dataset.pluginCss, 'dsh-live-voice/voice.module.css')
 assert.ok(styles[0].textContent.length > 0, 'injected stylesheet must not be empty')
 assert.deepEqual(Object.keys(loadFace()).sort(), ['apply', 'inject'])
 assert.equal(styles.length, 1, 're-materialization must deduplicate the tagged stylesheet')
@@ -90,6 +90,7 @@ const output = execFileSync(executable, args, {
 const [report] = JSON.parse(output)
 const names = new Set(report.files.map(file => file.path))
 const required = [
+  'CHANGELOG.md',
   'LICENSE',
   'README.md',
   'SECURITY.md',

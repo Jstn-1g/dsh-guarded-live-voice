@@ -24,7 +24,7 @@
   handshake order.
 - Tool escalation: one bounded proposal schema with `authority: none`.
 
-## Added in the v0.3 development branch
+## Added in the v0.3 preview
 
 The provider handshake binds the created and updated session identity, requires
 the requested allowlisted model, and confirms effective audio/text, PCM, manual-
@@ -38,7 +38,7 @@ prevent a low-rate peer from holding the provider capability indefinitely.
 The coordinator revalidates exact session object identity and workspace
 membership before and after provider open, before every append/commit, and
 before every provider output event is forwarded to the browser. The composer
-handoff is explicit, accepts only a completed final assistant transcript, and
+handoff is explicit, accepts only a completed final user transcript, and
 checks for an unchanged draft revision immediately before `setDraft`. Because
 DSH exposes no atomic compare-and-set action here, this reduces obvious stale
 replacement but cannot guarantee that a concurrent edit will never be
@@ -59,9 +59,9 @@ completed snapshot and releases its one-shot carrier connection immediately.
 ## Deferred with the feature
 
 Provider cancellation and barge-in, continuous turns, browser CSP compatibility,
-packed-install behavior, and interruption latency remain deferred. Browser
-capture/playback still require a real packed Desktop/Web smoke; live handshake
-and audio behavior require credentialed functional testing. Provider retention, deletion,
+packaged Desktop behavior, and interruption latency remain deferred. Browser
+capture/playback still require a physical-device packaged Desktop smoke; live
+handshake and audio behavior require credentialed functional testing. Provider retention, deletion,
 or residency claims require authoritative provider policy or contractual
 evidence and cannot be inferred from fake tests or successful live connections.
 

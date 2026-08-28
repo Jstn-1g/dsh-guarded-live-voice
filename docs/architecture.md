@@ -41,7 +41,7 @@ The current design has an ordered Host/browser control path:
     order. Playback is prepared by the same record gesture, permits at most five
     seconds of queued audio and 256 live source nodes, and resets every
     scheduled source on lifecycle teardown.
-14. A completed final assistant transcript can be copied to the exact session's
+14. A completed final user transcript can be copied to the exact session's
     composer only if its draft revision still equals the revision captured at
     disclosure acceptance at the moment of the button handler's check. DSH's
     current `setDraft` action provides no atomic compare-and-set, so this is a
@@ -52,5 +52,5 @@ The current design has an ordered Host/browser control path:
 All provider behavior is fake-server tested. Capture/resampling and audible
 playback are deterministic dependency-fake tested, including permission,
 worklet-crash, cap, ordering, backpressure, and teardown paths. Credentialed
-Qwen behavior, a packed DSH Desktop/Web smoke, browser CSP compatibility, and
+Qwen behavior, a packaged DSH Desktop smoke, browser CSP compatibility, and
 measured latency remain release gates.

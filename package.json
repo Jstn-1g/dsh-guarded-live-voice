@@ -1,7 +1,7 @@
 {
-  "name": "dsh-guarded-live-voice",
-  "version": "0.2.0",
-  "description": "Guarded DeepSeek Harness voice foundation with exact-session disclosure and proposal-only authority",
+  "name": "dsh-live-voice",
+  "version": "0.3.0-preview.1",
+  "description": "Safety-first DeepSeek Harness live voice preview with exact-session consent and one bounded manual audio turn",
   "license": "MIT",
   "type": "module",
   "main": "./lib/index.js",
@@ -24,6 +24,7 @@
     "lib/types/**/*.d.ts",
     "docs/",
     "cordis.patch.yml",
+    "CHANGELOG.md",
     "README.md",
     "SECURITY.md",
     "LICENSE"
@@ -34,12 +35,12 @@
   "packageManager": "pnpm@11.7.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Jstn-1g/dsh-guarded-live-voice.git"
+    "url": "git+https://github.com/Jstn-1g/dsh-live-voice.git"
   },
   "bugs": {
-    "url": "https://github.com/Jstn-1g/dsh-guarded-live-voice/issues"
+    "url": "https://github.com/Jstn-1g/dsh-live-voice/issues"
   },
-  "homepage": "https://github.com/Jstn-1g/dsh-guarded-live-voice#readme",
+  "homepage": "https://github.com/Jstn-1g/dsh-live-voice#readme",
   "keywords": [
     "deepseek-harness",
     "dsh-plugin",
@@ -47,6 +48,10 @@
     "qwen",
     "privacy"
   ],
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

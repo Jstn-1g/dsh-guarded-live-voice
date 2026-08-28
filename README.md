@@ -1,13 +1,15 @@
-# dsh-guarded-live-voice
+# DSH Live Voice
 
-A guarded DeepSeek Harness voice foundation with an exact-session Host boundary,
-a lazy browser disclosure UI, and one bounded manual audio turn. The unreleased
-v0.3 branch includes explicit-gesture microphone capture and bounded playback;
-credentialed provider and packed Desktop behavior are not yet proven.
+A safety-first live-voice add-on for DeepSeek Harness with an exact-session Host
+boundary, a lazy browser disclosure UI, and one bounded manual audio turn. The
+v0.3 preview branch includes explicit-gesture microphone capture and
+bounded playback; credentialed provider and packed Desktop behavior are not yet
+proven.
 
 ## Current status
 
-The released v0.2.0 milestone established the browser-side consent surface and
+The v0.2.0 pre-release, published under the former
+`dsh-guarded-live-voice` name, established the browser-side consent surface and
 exact-session Host boundary:
 
 - a lazy DSH browser module with composer-control and disclosure-panel slots;
@@ -24,7 +26,7 @@ exact-session Host boundary:
   cleanup; and
 - bounded proposal parsing with no execution authority.
 
-This v0.3 development branch adds a bounded manual-turn foundation behind that
+This v0.3 preview branch adds a bounded manual-turn foundation behind that
 same consumed-consent and authority lease:
 
 - an audio-mode Qwen handshake that requires the requested model, stable
@@ -63,7 +65,8 @@ backpressure are deterministic-fake tested. Packed composition with the
 official Harness is verified against a local fake Qwen server; no
 credential-backed audio roundtrip, physical-device audio, or packaged Desktop
 browser smoke is claimed. This is not a marketplace-ready voice product and is
-not “ChatGPT Live parity.”
+not “ChatGPT Live parity.” DSH Live Voice is the product name; the guarded
+consent and authority model remains its security architecture.
 
 The disclosure flow is user-visible, but it is not cryptographic proof that a
 human accepted it. The one-shot challenge proves control of that local client
@@ -86,6 +89,26 @@ compare-and-set, so the check is not a collision-proof overwrite guard. The
 plugin cannot submit a message, call a tool, write a custom session event, or
 execute work.
 
+## Install the preview
+
+The release tag includes prebuilt Host and browser artifacts, so installation
+does not require a source build:
+
+```sh
+dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.1
+```
+
+Restart the Web profile after installation. Existing v0.2.0 testers should
+remove `dsh-guarded-live-voice` before installing the renamed package. The
+internal Cordis row id `guarded-live-voice`, default `/guarded-voice` route, and
+hidden browser protocol/composition keys remain stable for this transition so
+existing profiles and mixed cached bundles do not silently duplicate or stop
+matching the plugin.
+
+This preview has deterministic and packed fake-provider coverage but still
+requires the live-provider and physical-device checks tracked in the release
+gate before a release candidate or stable release.
+
 ## Development
 
 Requirements: Node.js 22.19+ and pnpm 11.7.
@@ -101,12 +124,13 @@ and a dry-run package-content check.
 
 ## Development configuration
 
-The bundle inserts a `guarded-live-voice` Cordis row. A profile override will
+The bundle inserts the compatibility-stable `guarded-live-voice` Cordis row
+with the `dsh-live-voice` package name. A profile override will
 need an Alibaba Cloud Model Studio workspace id before provider authorization:
 
 ```yaml
 - id: guarded-live-voice
-  name: dsh-guarded-live-voice
+  name: dsh-live-voice
   config:
     credentialRef: DASHSCOPE_API_KEY
     dashscopeWorkspaceId: your-workspace-id
@@ -116,7 +140,7 @@ need an Alibaba Cloud Model Studio workspace id before provider authorization:
     maxConnections: 8
 ```
 
-After accepted disclosure, the development branch opens the allowlisted Qwen
+After accepted disclosure, the preview opens the allowlisted Qwen
 endpoint for one exact-session manual turn and resolves the credential only on
 the Host. A second explicit button starts browser capture; finishing it commits
 only that bounded provider turn. This path is fake-tested but still needs a

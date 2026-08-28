@@ -83,7 +83,7 @@ export class GuardedVoiceGateway {
       return
     }
     if (this.clients.size >= this.maxConnections) {
-      rejectUpgrade(socket, { ok: false, status: 429, reason: 'guarded voice connection limit reached' })
+      rejectUpgrade(socket, { ok: false, status: 429, reason: 'DSH Live Voice connection limit reached' })
       return
     }
     this.server.handleUpgrade(request, socket, head, webSocket => this.accept(webSocket))

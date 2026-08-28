@@ -213,7 +213,7 @@ export function apply(ctx: Context, input?: Config): void {
   ctx.effect(() => ctx.webServer.registerUpgrade({
     path: config.route,
     handler: (request, socket, head) => { gateway.handleUpgrade(request, socket, head) },
-  }), `guarded-live-voice: ${config.route} upgrade`)
-  ctx.effect(() => () => { gateway.close() }, 'guarded-live-voice: gateway cleanup')
+  }), `dsh-live-voice: ${config.route} upgrade`)
+  ctx.effect(() => () => { gateway.close() }, 'dsh-live-voice: gateway cleanup')
   ctx.on('session/disposed', (session) => { gateway.stopSession(String(session.id)) })
 }

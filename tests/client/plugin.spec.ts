@@ -160,7 +160,7 @@ describe('lazy browser plugin', () => {
       },
     }
     ctx.provide('locale', locale)
-    const fiber = ctx.plugin({ name: 'guarded-live-voice-test', inject: [...client.inject], apply: client.apply })
+    const fiber = ctx.plugin({ name: 'dsh-live-voice-test', inject: [...client.inject], apply: client.apply })
     await fiber.await()
     expect(slots.entries('conversation.input.left')).toHaveLength(0)
     expect(slots.entries('conversation.input.dock')).toHaveLength(0)
@@ -192,7 +192,7 @@ describe('lazy browser plugin', () => {
       stopVoice: injected.stopVoice,
       t: locale.bind('guardedVoice'),
     }))
-    expect(markup).toContain('Open guarded voice setup')
+    expect(markup).toContain('Open DSH Live Voice')
     expect(constructSocket).not.toHaveBeenCalled()
 
     await fiber.dispose()

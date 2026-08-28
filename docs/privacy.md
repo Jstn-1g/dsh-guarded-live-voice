@@ -15,7 +15,7 @@ the PCM bytes deliberately supplied after acceptance.
 Input PCM, provider audio deltas, and transcripts are not persisted by this
 plugin. The in-memory controller and provider resources are discarded on stop,
 session change, unmount, connection failure, provider failure, or authority
-change. A completed final assistant transcript may be copied into the normal
+change. A completed final user transcript may be copied into the normal
 composer only through an explicit revision-checked action and is never sent
 automatically. The draft-revision check immediately before `setDraft` is not an
 atomic compare-and-set and must not be treated as collision-proof.

@@ -14,12 +14,12 @@ import { VoicePanel } from './VoicePanel.js'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    /** Guarded voice disclosure and setup copy. */
+    /** DSH Live Voice disclosure and setup copy. */
     guardedVoice: VoiceKey
   }
 }
 
-/** Browser services required by the two guarded-voice slot contributions. */
+/** Browser services required by the two DSH Live Voice slot contributions. */
 export const inject = ['slots', 'locale']
 
 /** Mount the user-visible, exact-session disclosure flow. */
@@ -49,14 +49,14 @@ export function apply(ctx: ClientContext): void {
     finishVoiceCapture: sessionId => { controller.finishCapture(sessionId) },
   })
 
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'guarded-live-voice: browser dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-live-voice: browser dictionaries')
   ctx.effect(
     () => bindPageLifecycleCleanup(
       window,
       () => { controller.stop() },
       () => { controller.dispose() },
     ),
-    'guarded-live-voice: browser and document cleanup',
+    'dsh-live-voice: browser and document cleanup',
   )
   ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
     name: 'conversation.input.left',

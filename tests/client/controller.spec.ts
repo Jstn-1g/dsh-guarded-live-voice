@@ -642,7 +642,7 @@ describe('browser voice controller', () => {
     f.controller.subscribe(healthy)
     f.controller.start('session-1')
     expect(logged).toHaveBeenCalledWith(
-      'guarded voice snapshot listener failed:',
+      'DSH Live Voice snapshot listener failed:',
       expect.objectContaining({ message: 'observer failed' }),
     )
     expect(healthy).toHaveBeenCalledTimes(1)

@@ -60,7 +60,7 @@ export function assessUpgradeRequest(
   // one network-exposure floor, preventing a remote raw client from spoofing
   // both. It is not user or browser authentication.
   if (!isLoopbackAddress(request.remoteAddress)) {
-    return { ok: false, status: 403, reason: 'guarded voice is loopback-only' }
+    return { ok: false, status: 403, reason: 'DSH Live Voice is loopback-only' }
   }
   if (request.method !== 'GET') return { ok: false, status: 400, reason: 'websocket upgrade must use GET' }
   const upgrade = oneHeader(request.headers, 'upgrade')?.toLowerCase()

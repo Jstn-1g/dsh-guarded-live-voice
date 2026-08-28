@@ -24,8 +24,8 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { WebSocket, WebSocketServer } from 'ws'
 
-const PROFILE = 'guarded-voice-fake-qwen-smoke'
-const PLUGIN_NAME = 'dsh-guarded-live-voice'
+const PROFILE = 'dsh-live-voice-fake-qwen-smoke'
+const PLUGIN_NAME = 'dsh-live-voice'
 const ROUTE = '/guarded-voice'
 const MODEL = 'qwen-audio-3.0-realtime-plus'
 const WORKSPACE_SLUG = 'voice-smoke'
@@ -33,9 +33,13 @@ const FAKE_CREDENTIAL = 'deterministic-fake-qwen-token'
 const EXPECTED_AUDIO = Buffer.from([1, 0, 2, 0])
 const EXPECTED_USER_TRANSCRIPT = 'deterministic user transcript'
 const EXPECTED_ASSISTANT_TRANSCRIPT = 'deterministic assistant transcript'
+const allowInstallNetwork = process.env.DSH_VOICE_SMOKE_INSTALL_ONLINE === '1'
 const PROCESS_TIMEOUT_MS = 180_000
 const READY_TIMEOUT_MS = 180_000
-const TURN_TIMEOUT_MS = 20_000
+// Official Harness profile startup can continue warming services after the HTTP
+// listener is ready on loaded Windows hosts. Keep the voice turn bounded while
+// allowing those first profile RPCs to settle.
+const TURN_TIMEOUT_MS = 60_000
 const STOP_TIMEOUT_MS = 10_000
 const OUTPUT_LIMIT = 64 * 1024
 const SAFE_INHERITED_ENV_NAME = /^(?:appdata|commonprogramfiles(?:\(x86\)|w6432)?|comspec|force_color|lang|lc_all|localappdata|no_color|number_of_processors|os|path|pathext|processor_architecture|programdata|programfiles(?:\(x86\))?|programw6432|systemdrive|systemroot|temp|term|tmp|tmpdir|windir)$/iu
@@ -105,8 +109,8 @@ async function runChild(command, args, { cwd, env, label, timeoutMs = PROCESS_TI
     windowsHide: true,
   })
   activeChildren.add(child)
-  boundedCapture(child.stdout)
-  boundedCapture(child.stderr)
+  const readStdout = boundedCapture(child.stdout)
+  const readStderr = boundedCapture(child.stderr)
   const completion = new Promise((resolveCompletion, rejectCompletion) => {
     child.once('error', rejectCompletion)
     child.once('exit', (code, signal) => resolveCompletion({ code, signal }))
@@ -114,7 +118,8 @@ async function runChild(command, args, { cwd, env, label, timeoutMs = PROCESS_TI
   try {
     const result = await withTimeout(completion, timeoutMs, label)
     if (result.code !== 0) {
-      throw new Error(`${label} exited unsuccessfully (${result.code ?? result.signal ?? 'unknown'})`)
+      const diagnostic = [readStdout(), readStderr()].filter(Boolean).join('\n').trim()
+      throw new Error(`${label} exited unsuccessfully (${result.code ?? result.signal ?? 'unknown'})${diagnostic === '' ? '' : `\n${diagnostic}`}`)
     }
   } catch (error) {
     await stopChild(child)
@@ -339,7 +344,7 @@ async function rpc(baseUrl, method, payload, sequence) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       type: 'client-request',
-      rpcId: `guarded-voice-smoke-${String(sequence)}`,
+      rpcId: `dsh-live-voice-smoke-${String(sequence)}`,
       method,
       payload,
     }),
@@ -544,7 +549,7 @@ async function main() {
     '--profile',
     PROFILE,
     'add',
-    '--offline',
+    ...(allowInstallNetwork ? [] : ['--offline']),
     tarball,
   ], {
     cwd: temporaryRoot,
@@ -567,7 +572,7 @@ async function main() {
   const installedPluginUrlPrefix = pathToFileURL(`${dirname(installedPluginPackage)}${sep}`).href
   await writeFile(join(profileDir, 'cordis.patch.yml'), `\
 - id: guarded-live-voice
-  name: dsh-guarded-live-voice
+  name: dsh-live-voice
   config:
     credentialRef: DSH_VOICE_FAKE_KEY
     route: ${ROUTE}
@@ -673,7 +678,7 @@ export { WebSocketServer }
   const client = await clientResponse.text()
   assert.equal(clientResponse.status, 200)
   assert.equal(
-    /\bid:\s*["']dsh-guarded-live-voice["']/u.test(client),
+    /\bid:\s*["']dsh-live-voice["']/u.test(client),
     true,
     'served client bundle lacked the exact wrapper id',
   )

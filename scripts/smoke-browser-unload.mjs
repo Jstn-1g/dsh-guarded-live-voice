@@ -60,7 +60,7 @@ function page() {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Guarded voice raw-unload smoke</title>
+  <title>DSH Live Voice raw-unload smoke</title>
   <style>
     body { color: #151515; font: 16px/1.5 system-ui, sans-serif; margin: 3rem auto; max-width: 48rem; padding: 0 1rem; }
     button { font: inherit; margin: .5rem .5rem .5rem 0; padding: .65rem 1rem; }
@@ -169,7 +169,7 @@ function page() {
   <script src="/client.js"></script>
 </head>
 <body>
-  <h1>Guarded voice raw-unload smoke</h1>
+  <h1>DSH Live Voice raw-unload smoke</h1>
   <p>This page uses a synthetic browser MediaStream and a loopback WebSocket. It never requests microphone permission.</p>
   <button id="start" type="button">Start</button>
   <button id="accept" type="button">Accept</button>

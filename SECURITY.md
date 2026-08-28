@@ -19,7 +19,7 @@ private transcripts, or private workspace content in a public issue.
   acceptable `Sec-Fetch-Site`, and an available bounded-connection slot. These
   are network-exposure and DNS-rebinding/cross-site fences, not authentication.
 - Provider proposals carry no execution authority.
-- The v0.3 development path permits one bounded manual PCM turn after accepted
+- The v0.3 preview path permits one bounded manual PCM turn after accepted
   disclosure. The package does not durably persist raw audio or partial
   provider deltas, and releases its owned transient resources on lifecycle
   teardown. The included browser path requests microphone permission only from
@@ -29,7 +29,7 @@ private transcripts, or private workspace content in a public issue.
 - Invalid, oversized, stale, ambiguous, or out-of-order input fails closed.
 
 When explicitly configured with a DashScope workspace and credential reference,
-the registered v0.3 development path can connect to Qwen after exact disclosure
+the registered v0.3 preview path can connect to Qwen after exact disclosure
 acceptance and stream only bounded PCM input. It exports no DSH history, files,
 workspace instructions, arbitrary text input, system instruction, or tool
 schema. Provider transcript/audio output is revalidated against the exact live

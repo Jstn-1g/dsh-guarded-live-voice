@@ -6,6 +6,7 @@ import {
 } from '../shared/audio.js'
 import type { VoiceAudioCapture, VoiceAudioCaptureHandlers } from './controller.js'
 
+// Compatibility-stable worklet key. This is intentionally not the product name.
 const WORKLET_NAME = 'dsh-guarded-live-voice-capture-v1'
 const WORKLET_SOURCE = `
 class GuardedLiveVoiceCapture extends AudioWorkletProcessor {

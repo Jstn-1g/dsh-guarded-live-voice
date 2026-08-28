@@ -151,7 +151,7 @@ export class VoiceClientController {
     this.location = options.location ?? window.location
     this.route = parseGuardedVoiceClientBoot({ v: CLIENT_BOOT_VERSION, route: options.route }).route
     if (this.location.protocol !== 'http:' && this.location.protocol !== 'https:') {
-      throw new TypeError('guarded voice requires an HTTP(S) page')
+      throw new TypeError('DSH Live Voice requires an HTTP(S) page')
     }
     this.socketFactory = options.socketFactory ?? (url => new WebSocket(url))
     this.now = options.now ?? Date.now
@@ -673,7 +673,7 @@ export class VoiceClientController {
       try {
         listener()
       } catch (error) {
-        console.error('guarded voice snapshot listener failed:', error)
+        console.error('DSH Live Voice snapshot listener failed:', error)
       }
     }
   }

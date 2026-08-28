@@ -1,10 +1,11 @@
+// Compatibility-stable locale namespace. User-facing copy carries the new brand.
 export const NS = 'guardedVoice' as const
 
 export const en = {
-  'control.start': 'Open guarded voice setup',
-  'control.stop': 'Close guarded voice setup',
-  'control.otherSession': 'Guarded voice setup is open in another session',
-  'panel.connecting': 'Opening guarded voice setup…',
+  'control.start': 'Open DSH Live Voice',
+  'control.stop': 'Close DSH Live Voice',
+  'control.otherSession': 'DSH Live Voice is open in another session',
+  'panel.connecting': 'Opening DSH Live Voice…',
   'panel.title': 'Before voice is enabled',
   'panel.preview': 'Manual-turn foundation',
   'panel.destination': 'Microphone audio destination',
@@ -33,7 +34,7 @@ export const en = {
   'panel.assistantTranscript': 'Assistant',
   'panel.useUserAsDraft': 'Use my transcript as draft',
   'panel.draftConflict': 'The composer changed after voice consent. Copy the transcript manually to avoid overwriting newer work.',
-  'panel.error': 'Guarded voice setup failed',
+  'panel.error': 'DSH Live Voice setup failed',
   'panel.retry': 'Try again',
   'panel.dismiss': 'Dismiss',
   'panel.session': 'Session',
@@ -44,10 +45,10 @@ export const en = {
 export type VoiceKey = keyof typeof en
 
 export const zh: Record<VoiceKey, string> = {
-  'control.start': '打开受保护的语音设置',
-  'control.stop': '关闭受保护的语音设置',
-  'control.otherSession': '受保护的语音设置已在另一会话中打开',
-  'panel.connecting': '正在打开受保护的语音设置…',
+  'control.start': '打开 DSH Live Voice',
+  'control.stop': '关闭 DSH Live Voice',
+  'control.otherSession': 'DSH Live Voice 已在另一会话中打开',
+  'panel.connecting': '正在打开 DSH Live Voice…',
   'panel.title': '启用语音前',
   'panel.preview': '手动轮次基础功能',
   'panel.destination': '麦克风音频目的地',
@@ -76,7 +77,7 @@ export const zh: Record<VoiceKey, string> = {
   'panel.assistantTranscript': '助手',
   'panel.useUserAsDraft': '将我的转录文本用作草稿',
   'panel.draftConflict': '语音确认后编辑器已发生变化。请手动复制转录文本，以免覆盖较新的内容。',
-  'panel.error': '受保护的语音设置失败',
+  'panel.error': 'DSH Live Voice 设置失败',
   'panel.retry': '重试',
   'panel.dismiss': '关闭',
   'panel.session': '会话',
