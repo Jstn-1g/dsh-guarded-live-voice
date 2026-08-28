@@ -19,17 +19,28 @@ function elements(node: ReactNode): ReactElement[] {
 }
 
 function props(snapshot: VoiceClientSnapshot) {
+  const setDraft = vi.fn()
+  const getVoiceSnapshot = vi.fn<() => VoiceClientSnapshot>(() => snapshot)
+  const claimVoiceDraftHandoff = vi.fn(() => true)
   return {
     sessionId: 'session-1',
     useVoice: (selector: (value: VoiceClientSnapshot) => unknown) => selector(snapshot),
+    getVoiceSnapshot,
+    isComposerBindingCurrent: vi.fn(() => true),
+    claimVoiceDraftHandoff,
     startVoice: vi.fn(),
     acceptDisclosure: vi.fn(),
     stopVoice: vi.fn(),
+    beginVoiceCapture: vi.fn(),
+    finishVoiceCapture: vi.fn(),
+    input: { draftRev: 7 },
+    inputActions: { setDraft },
+    setDraft,
     t: (key: VoiceKey) => en[key],
   }
 }
 
-describe('guarded voice composer surfaces', () => {
+describe('DSH Live Voice composer surfaces', () => {
   it('renders the exact disclosure and accepts only through its explicit button', () => {
     const snapshot: VoiceClientSnapshot = {
       phase: 'awaiting-consent',
@@ -41,7 +52,7 @@ describe('guarded voice composer surfaces', () => {
         exportedContext: 'none',
         executionAuthority: 'none',
         providerRetention: 'not specified for Qwen realtime audio',
-        currentMilestone: 'no microphone access or audio transmission',
+        currentMilestone: 'one bounded manual audio turn after acceptance',
       },
     }
     const input = props(snapshot)
@@ -50,7 +61,7 @@ describe('guarded voice composer surfaces', () => {
     expect(text).toContain('Before voice is enabled')
     expect(text).toContain('Alibaba Cloud Qwen realtime API')
     expect(text).toContain('Not specified in the Qwen realtime-audio documentation')
-    expect(text).toContain('No microphone access and no audio transmission')
+    expect(text).toContain('One bounded manual turn after this acceptance')
     expect(text).toContain('session-1')
     expect(text).toContain('workspace-1')
     expect(text).not.toContain('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
@@ -61,7 +72,7 @@ describe('guarded voice composer surfaces', () => {
     const cancel = buttons.find(button => textOf(button) === 'Cancel')
     expect(accept).toBeDefined()
     ;(accept?.props as { onClick(): void }).onClick()
-    expect(input.acceptDisclosure).toHaveBeenCalledWith('session-1')
+    expect(input.acceptDisclosure).toHaveBeenCalledWith('session-1', 7, input.inputActions)
     expect(input.startVoice).not.toHaveBeenCalled()
     expect(input.stopVoice).not.toHaveBeenCalled()
     ;(cancel?.props as { onClick(): void }).onClick()
@@ -85,7 +96,7 @@ describe('guarded voice composer surfaces', () => {
               exportedContext: 'none',
               executionAuthority: 'none',
               providerRetention: 'not specified for Qwen realtime audio',
-              currentMilestone: 'no microphone access or audio transmission',
+              currentMilestone: 'one bounded manual audio turn after acceptance',
             },
           }
       const input = props(snapshot)
@@ -121,7 +132,7 @@ describe('guarded voice composer surfaces', () => {
     expect(failedElsewhere.startVoice).toHaveBeenCalledWith('session-1')
   })
 
-  it('describes ready as a configuration check rather than a provider connection', () => {
+  it('starts microphone capture only through the exact ready-session button', () => {
     const input = props({
       phase: 'ready',
       sessionId: 'session-1',
@@ -133,16 +144,47 @@ describe('guarded voice composer surfaces', () => {
         exportedContext: 'none',
         executionAuthority: 'none',
         providerRetention: 'not specified for Qwen realtime audio',
-        currentMilestone: 'no microphone access or audio transmission',
+        currentMilestone: 'one bounded manual audio turn after acceptance',
       },
     })
     const panel = VoicePanel(input as never)
     const text = textOf(panel)
-    expect(text).toContain('Provider configuration found')
-    expect(text).toContain('No provider connection was opened')
-    const stop = elements(panel).find(element => element.type === 'button')
+    expect(text).toContain('Manual-turn transport ready')
+    expect(text).toContain('Start one bounded microphone turn')
+    const buttons = elements(panel).filter(element => element.type === 'button')
+    const stop = buttons.find(button => textOf(button) === 'Close DSH Live Voice')
+    const record = buttons.find(button => textOf(button) === 'Start recording')
+    ;(record?.props as { onClick(): void }).onClick()
+    expect(input.beginVoiceCapture).toHaveBeenCalledWith('session-1')
+    expect(input.finishVoiceCapture).not.toHaveBeenCalled()
     ;(stop?.props as { onClick(): void }).onClick()
     expect(input.stopVoice).toHaveBeenCalledWith('session-1')
+  })
+
+  it('keeps permission cancellation visible and commits recording only through its explicit button', () => {
+    const disclosure = {
+      expiresAt: 1_900_000_060_000,
+      workspaceId: 'workspace-1',
+      audioDestination: 'Alibaba Cloud Qwen realtime API' as const,
+      exportedContext: 'none' as const,
+      executionAuthority: 'none' as const,
+      providerRetention: 'not specified for Qwen realtime audio' as const,
+      currentMilestone: 'one bounded manual audio turn after acceptance' as const,
+    }
+    const preparing = props({ phase: 'preparing-audio', sessionId: 'session-1', disclosure })
+    const preparingPanel = VoicePanel(preparing as never)
+    expect(textOf(preparingPanel)).toContain('Waiting for microphone permission')
+    const cancel = elements(preparingPanel).find(element => element.type === 'button')
+    ;(cancel?.props as { onClick(): void }).onClick()
+    expect(preparing.stopVoice).toHaveBeenCalledWith('session-1')
+
+    const recording = props({ phase: 'recording', sessionId: 'session-1', disclosure })
+    const recordingPanel = VoicePanel(recording as never)
+    expect(textOf(recordingPanel)).toContain('This cannot submit the Harness composer or run tools')
+    const finish = elements(recordingPanel)
+      .find(element => element.type === 'button' && textOf(element) === 'Finish and request answer')
+    ;(finish?.props as { onClick(): void }).onClick()
+    expect(recording.finishVoiceCapture).toHaveBeenCalledWith('session-1')
   })
 
   it('keeps a failed setup inert and offers only dismiss or retry', () => {
@@ -156,5 +198,150 @@ describe('guarded voice composer surfaces', () => {
     expect(input.stopVoice).toHaveBeenCalledWith('session-1')
     expect(input.startVoice).toHaveBeenCalledWith('session-1')
     expect(input.acceptDisclosure).not.toHaveBeenCalled()
+  })
+
+  it('offers only a conflict-fenced final user transcript as an editable draft', () => {
+    const disclosure = {
+      expiresAt: 1_900_000_060_000,
+      workspaceId: 'workspace-1',
+      audioDestination: 'Alibaba Cloud Qwen realtime API' as const,
+      exportedContext: 'none' as const,
+      executionAuthority: 'none' as const,
+      providerRetention: 'not specified for Qwen realtime audio' as const,
+      currentMilestone: 'one bounded manual audio turn after acceptance' as const,
+    }
+    const completed = props({
+      phase: 'completed',
+      sessionId: 'session-1',
+      disclosure,
+      model: 'qwen-audio-3.0-realtime-plus',
+      userTranscript: 'question  ',
+      userTranscriptFinal: true,
+      assistantTranscript: 'proposed answer',
+      assistantTranscriptFinal: true,
+      turnStatus: 'completed',
+      draftRevision: 7,
+    })
+    const completedPanel = VoicePanel(completed as never)
+    const useDraft = elements(completedPanel)
+      .find(element => element.type === 'button' && textOf(element) === 'Use my transcript as draft')
+    expect(useDraft).toBeDefined()
+    expect((useDraft?.props as { disabled: boolean }).disabled).toBe(false)
+    ;(useDraft?.props as { onClick(): void }).onClick()
+    expect(completed.getVoiceSnapshot).toHaveBeenCalledOnce()
+    expect(completed.claimVoiceDraftHandoff).toHaveBeenCalledWith(
+      'session-1',
+      completed.inputActions,
+      7,
+    )
+    expect(completed.setDraft).toHaveBeenCalledWith('question  ')
+
+    const conflict = props({
+      phase: 'completed',
+      sessionId: 'session-1',
+      disclosure,
+      userTranscript: 'stale question',
+      userTranscriptFinal: true,
+      assistantTranscript: 'stale answer',
+      assistantTranscriptFinal: true,
+      turnStatus: 'completed',
+      draftRevision: 6,
+    })
+    const conflictPanel = VoicePanel(conflict as never)
+    expect(textOf(conflictPanel)).toContain('The composer changed after voice consent')
+    const blocked = elements(conflictPanel)
+      .find(element => element.type === 'button' && textOf(element) === 'Use my transcript as draft')
+    expect((blocked?.props as { disabled: boolean }).disabled).toBe(true)
+    ;(blocked?.props as { onClick(): void }).onClick()
+    expect(conflict.setDraft).not.toHaveBeenCalled()
+
+    const cancelled = props({
+      phase: 'completed',
+      sessionId: 'session-1',
+      disclosure,
+      userTranscript: 'cancelled question',
+      userTranscriptFinal: true,
+      assistantTranscript: 'partial answer',
+      assistantTranscriptFinal: true,
+      turnStatus: 'cancelled',
+      draftRevision: 7,
+    })
+    expect(elements(VoicePanel(cancelled as never))
+      .some(element => element.type === 'button' && textOf(element) === 'Use my transcript as draft')).toBe(false)
+
+    for (const userTranscript of ['', '   ']) {
+      const blank = props({
+        phase: 'completed',
+        sessionId: 'session-1',
+        disclosure,
+        userTranscript,
+        userTranscriptFinal: true,
+        assistantTranscript: 'answer',
+        assistantTranscriptFinal: true,
+        turnStatus: 'completed',
+        draftRevision: 7,
+      })
+      expect(elements(VoicePanel(blank as never))
+        .some(element => element.type === 'button' && textOf(element) === 'Use my transcript as draft')).toBe(false)
+    }
+
+    const partial = props({
+      phase: 'completed',
+      sessionId: 'session-1',
+      disclosure,
+      userTranscript: 'unfinished question',
+      userTranscriptFinal: false,
+      turnStatus: 'completed',
+      draftRevision: 7,
+    })
+    expect(elements(VoicePanel(partial as never))
+      .some(element => element.type === 'button' && textOf(element) === 'Use my transcript as draft')).toBe(false)
+
+    const replaced = props({
+      phase: 'completed',
+      sessionId: 'session-1',
+      disclosure,
+      userTranscript: 'exact bytes  ',
+      userTranscriptFinal: true,
+      turnStatus: 'completed',
+      draftRevision: 7,
+    })
+    const replacedButton = elements(VoicePanel(replaced as never))
+      .find(element => element.type === 'button' && textOf(element) === 'Use my transcript as draft')
+    replaced.getVoiceSnapshot.mockReturnValue({
+      phase: 'completed',
+      sessionId: 'session-2',
+      disclosure,
+      userTranscript: 'exact bytes  ',
+      userTranscriptFinal: true,
+      turnStatus: 'completed',
+      draftRevision: 7,
+    })
+    ;(replacedButton?.props as { onClick(): void }).onClick()
+    expect(replaced.setDraft).not.toHaveBeenCalled()
+
+    const sameIdReplacement = props({
+      phase: 'completed',
+      sessionId: 'session-1',
+      disclosure,
+      userTranscript: 'private old-session question',
+      userTranscriptFinal: true,
+      turnStatus: 'completed',
+      draftRevision: 7,
+    })
+    sameIdReplacement.isComposerBindingCurrent.mockReturnValue(false)
+    sameIdReplacement.claimVoiceDraftHandoff.mockReturnValue(false)
+    const sameIdPanel = VoicePanel(sameIdReplacement as never)
+    expect(textOf(sameIdPanel)).toContain('The composer changed after voice consent')
+    const sameIdButton = elements(sameIdPanel)
+      .find(element => element.type === 'button' && textOf(element) === 'Use my transcript as draft')
+    expect((sameIdButton?.props as { disabled: boolean }).disabled).toBe(true)
+    ;(sameIdButton?.props as { onClick(): void }).onClick()
+    expect(sameIdReplacement.claimVoiceDraftHandoff).toHaveBeenCalledWith(
+      'session-1',
+      sameIdReplacement.inputActions,
+      7,
+    )
+    expect(sameIdReplacement.setDraft).not.toHaveBeenCalled()
   })
 })

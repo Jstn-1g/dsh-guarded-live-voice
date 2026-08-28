@@ -3,36 +3,61 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import { CLIENT_BOOT_GLOBAL, parseGuardedVoiceClientBoot } from '../shared/boot.js'
+import { BrowserPcmCapture } from './audio-capture.js'
+import { BrowserPcmPlaybackSink } from './audio-playback.js'
 import { VoiceClientController } from './controller.js'
 import type { VoiceInjected } from './contract.js'
 import { en, NS, zh, type VoiceKey } from './locales.js'
+import { bindPageLifecycleCleanup } from './page-lifecycle.js'
 import { VoiceControl } from './VoiceControl.js'
 import { VoicePanel } from './VoicePanel.js'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    /** Guarded voice disclosure and setup copy. */
+    /** DSH Live Voice disclosure and setup copy. */
     guardedVoice: VoiceKey
   }
 }
 
-/** Browser services required by the two guarded-voice slot contributions. */
+/** Browser services required by the two DSH Live Voice slot contributions. */
 export const inject = ['slots', 'locale']
 
 /** Mount the user-visible, exact-session disclosure flow. */
 export function apply(ctx: ClientContext): void {
   const raw = (globalThis as Record<string, unknown>)[CLIENT_BOOT_GLOBAL]
   const boot = parseGuardedVoiceClientBoot(raw)
-  const controller = new VoiceClientController({ route: boot.route })
+  const controller = new VoiceClientController({
+    route: boot.route,
+    audioSink: new BrowserPcmPlaybackSink(),
+    captureFactory: handlers => new BrowserPcmCapture(handlers),
+  })
   const injected = (): VoiceInjected => ({
     hooks: { voice: controller },
+    getVoiceSnapshot: controller.getSnapshot,
     startVoice: sessionId => { controller.start(sessionId) },
-    acceptDisclosure: sessionId => { controller.accept(sessionId) },
+    acceptDisclosure: (sessionId, draftRevision, composerIdentity) => {
+      controller.accept(sessionId, draftRevision, composerIdentity)
+    },
+    isComposerBindingCurrent: (sessionId, composerIdentity) =>
+      controller.isComposerBindingCurrent(sessionId, composerIdentity),
+    claimVoiceDraftHandoff: (sessionId, composerIdentity, draftRevision) =>
+      controller.claimDraftHandoff(sessionId, composerIdentity, draftRevision),
     stopVoice: sessionId => { controller.stop(sessionId) },
+    appendVoicePcm16: (sessionId, chunk) => { controller.appendPcm16(sessionId, chunk) },
+    commitVoiceTurn: sessionId => { controller.commitTurn(sessionId) },
+    beginVoiceCapture: sessionId => { controller.beginCapture(sessionId) },
+    finishVoiceCapture: sessionId => { controller.finishCapture(sessionId) },
   })
 
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'guarded-live-voice: browser dictionaries')
-  ctx.effect(() => () => { controller.dispose() }, 'guarded-live-voice: browser cleanup')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-live-voice: browser dictionaries')
+  ctx.effect(
+    () => bindPageLifecycleCleanup(
+      window,
+      () => { controller.stop() },
+      () => { controller.dispose() },
+    ),
+    'dsh-live-voice: browser and document cleanup',
+  )
   ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
     name: 'conversation.input.left',
     id: 'guarded-live-voice',

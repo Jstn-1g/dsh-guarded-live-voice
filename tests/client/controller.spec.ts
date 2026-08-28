@@ -1,20 +1,32 @@
 import { describe, expect, it, vi } from 'vitest'
-import { VoiceClientController } from '../../src/client/controller.js'
+import {
+  VoiceClientController,
+  type VoiceAudioCaptureFactory,
+  type VoiceAudioCaptureHandlers,
+} from '../../src/client/controller.js'
 
 type SocketEventName = 'open' | 'message' | 'error' | 'close'
 type SocketListener = (event: Event | MessageEvent<unknown> | CloseEvent) => void
 
 class FakeSocket {
   readyState = 0
+  bufferedAmount = 0
+  binaryType: BinaryType = 'blob'
   readonly sent: string[] = []
+  readonly binary: Uint8Array[] = []
   readonly closes: Array<{ readonly code?: number; readonly reason?: string }> = []
   private readonly listeners = new Map<SocketEventName, Set<SocketListener>>()
 
-  send(data: string): void {
-    this.sent.push(data)
+  send(data: string | BufferSource): void {
+    if (typeof data === 'string') this.sent.push(data)
+    else if (data instanceof ArrayBuffer) this.binary.push(new Uint8Array(data))
+    else this.binary.push(new Uint8Array(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)))
   }
 
   close(code?: number, reason?: string): void {
+    if (code !== undefined && code !== 1000 && (code < 3000 || code > 4999)) {
+      throw new DOMException('invalid browser WebSocket close code', 'InvalidAccessError')
+    }
     this.closes.push({ ...(code === undefined ? {} : { code }), ...(reason === undefined ? {} : { reason }) })
     this.readyState = 2
   }
@@ -73,7 +85,7 @@ function consentEvent(sessionId = 'session-1', workspaceId = 'workspace-1', expi
       exportedContext: 'none',
       executionAuthority: 'none',
       providerRetention: 'not specified for Qwen realtime audio',
-      currentMilestone: 'no microphone access or audio transmission',
+      currentMilestone: 'one bounded manual audio turn after acceptance',
     },
   })
 }
@@ -90,11 +102,12 @@ function readyEvent(sessionId = 'session-1', workspaceId = 'workspace-1'): strin
   })
 }
 
-function fixture(socket = new FakeSocket()) {
+function fixture(socket = new FakeSocket(), captureFactory?: VoiceAudioCaptureFactory) {
   let now = NOW
   let scheduled: { readonly callback: () => void; readonly delayMs: number } | undefined
   const timer = {} as ReturnType<typeof setTimeout>
   const cancelScheduled = vi.fn()
+  const audioSink = { prepare: vi.fn(() => Promise.resolve()), write: vi.fn(), reset: vi.fn() }
   const socketFactory = vi.fn((_url: string) => socket as unknown as WebSocket)
   const controller = new VoiceClientController({
     route: '/guarded-voice',
@@ -106,12 +119,15 @@ function fixture(socket = new FakeSocket()) {
       return timer
     },
     cancelScheduled,
+    audioSink,
+    ...(captureFactory === undefined ? {} : { captureFactory }),
   })
   return {
     controller,
     socket,
     socketFactory,
     cancelScheduled,
+    audioSink,
     scheduled: () => scheduled,
     setNow(value: number) { now = value },
   }
@@ -164,7 +180,7 @@ describe('browser voice controller', () => {
       error: 'disclosure acceptance expired',
     })
     expect(f.socket.sent).toHaveLength(1)
-    expect(f.socket.closes).toEqual([{ code: 1008, reason: 'invalid voice state' }])
+    expect(f.socket.closes).toEqual([{ code: 4000, reason: 'invalid voice state' }])
     expect(f.socket.listenerCount()).toBe(0)
   })
 
@@ -215,6 +231,190 @@ describe('browser voice controller', () => {
     mismatch.socket.message(readyEvent('session-1', 'workspace-2'))
     expect(mismatch.controller.getSnapshot()).toMatchObject({ phase: 'error' })
     expect(mismatch.socket.closes).toHaveLength(1)
+  })
+
+  it('relays one exact-session bounded PCM turn and accepts only ordered streamed output', () => {
+    const f = fixture()
+    const composerIdentity = {}
+    const sameIdReplacementIdentity = {}
+    f.controller.start('session-1')
+    expect(f.socket.binaryType).toBe('arraybuffer')
+    f.socket.open()
+    f.socket.message(consentEvent())
+    f.controller.accept('session-1', 9, composerIdentity)
+    f.socket.message(readyEvent())
+    expect(f.controller.getSnapshot()).toMatchObject({ phase: 'ready', draftRevision: 9 })
+
+    f.controller.appendPcm16('other-session', new Uint8Array([1, 0]))
+    expect(f.socket.binary).toEqual([])
+    const pcm = new Uint8Array([1, 0, 2, 0])
+    f.controller.appendPcm16('session-1', pcm)
+    pcm.fill(9)
+    expect(f.socket.binary).toEqual([new Uint8Array([1, 0, 2, 0])])
+    f.controller.commitTurn('other-session')
+    expect(f.controller.getSnapshot().phase).toBe('ready')
+    f.controller.commitTurn('session-1')
+    expect(JSON.parse(f.socket.sent.at(-1) ?? '')).toEqual({ v: 1, type: 'turn.commit' })
+    expect(f.controller.getSnapshot()).toMatchObject({ phase: 'responding', draftRevision: 9 })
+
+    f.socket.message(JSON.stringify({
+      v: 1, type: 'transcript', role: 'user', text: 'hello', final: true,
+    }))
+    f.socket.message(JSON.stringify({
+      v: 1, type: 'transcript', role: 'assistant', text: 'answer', final: true,
+    }))
+    const audio = new Uint8Array([3, 0, 4, 0])
+    f.socket.message(audio.buffer)
+    expect(f.audioSink.write).toHaveBeenCalledWith(new Uint8Array([3, 0, 4, 0]))
+    f.socket.message(JSON.stringify({ v: 1, type: 'turn.done', status: 'completed' }))
+    expect(f.controller.getSnapshot()).toMatchObject({
+      phase: 'completed',
+      turnStatus: 'completed',
+      userTranscript: 'hello',
+      userTranscriptFinal: true,
+      assistantTranscript: 'answer',
+      assistantTranscriptFinal: true,
+      draftRevision: 9,
+    })
+    expect(f.socket.closes).toEqual([{ code: 1000, reason: 'turn complete' }])
+    expect(f.controller.isComposerBindingCurrent('session-1', sameIdReplacementIdentity)).toBe(false)
+    expect(f.controller.claimDraftHandoff('session-1', sameIdReplacementIdentity, 9)).toBe(false)
+    expect(f.controller.isComposerBindingCurrent('session-1', composerIdentity)).toBe(true)
+    expect(f.controller.claimDraftHandoff('session-1', composerIdentity, 8)).toBe(false)
+    expect(f.controller.claimDraftHandoff('session-1', composerIdentity, 9)).toBe(true)
+    expect(f.controller.claimDraftHandoff('session-1', composerIdentity, 9)).toBe(false)
+    f.controller.appendPcm16('session-1', new Uint8Array([5, 0]))
+    expect(f.socket.binary).toHaveLength(1)
+    f.controller.stop('session-1')
+    expect(f.audioSink.reset).toHaveBeenCalled()
+  })
+
+  it('prepares capture from an explicit gesture, relays owned PCM, and commits only on finish', async () => {
+    let handlers: VoiceAudioCaptureHandlers | undefined
+    const capture = {
+      start: vi.fn(() => Promise.resolve()),
+      stop: vi.fn((flush?: boolean) => {
+        if (flush === true) handlers?.onChunk(new Uint8Array([3, 0]))
+      }),
+    }
+    const f = fixture(new FakeSocket(), callbacks => {
+      handlers = callbacks
+      return capture
+    })
+    f.controller.start('session-1')
+    f.socket.open()
+    f.socket.message(consentEvent())
+    f.controller.accept('session-1', 3)
+    f.socket.message(readyEvent())
+
+    f.controller.beginCapture('other-session')
+    expect(capture.start).not.toHaveBeenCalled()
+    f.controller.beginCapture('session-1')
+    expect(f.controller.getSnapshot().phase).toBe('preparing-audio')
+    expect(f.audioSink.prepare).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => { expect(f.controller.getSnapshot().phase).toBe('recording') })
+
+    handlers?.onChunk(new Uint8Array([1, 0, 2, 0]))
+    expect(f.socket.binary).toEqual([new Uint8Array([1, 0, 2, 0])])
+    expect(f.socket.sent.some(frame => frame.includes('turn.commit'))).toBe(false)
+    f.controller.finishCapture('other-session')
+    expect(capture.stop).not.toHaveBeenCalled()
+    f.controller.finishCapture('session-1')
+    expect(capture.stop).toHaveBeenCalledWith(true)
+    expect(f.socket.binary).toEqual([
+      new Uint8Array([1, 0, 2, 0]),
+      new Uint8Array([3, 0]),
+    ])
+    expect(JSON.parse(f.socket.sent.at(-1) ?? '')).toEqual({ v: 1, type: 'turn.commit' })
+    expect(f.controller.getSnapshot()).toMatchObject({ phase: 'responding', draftRevision: 3 })
+
+    const binaryCount = f.socket.binary.length
+    handlers?.onChunk(new Uint8Array([4, 0]))
+    handlers?.onLimit()
+    expect(f.socket.binary).toHaveLength(binaryCount)
+    expect(f.socket.sent.filter(frame => frame.includes('turn.commit'))).toHaveLength(1)
+  })
+
+  it('fails the exact lifecycle on permission denial and auto-commits only at the hard capture cap', async () => {
+    const deniedCapture = {
+      start: vi.fn(() => Promise.reject(new Error('microphone permission was denied'))),
+      stop: vi.fn(),
+    }
+    const denied = fixture(new FakeSocket(), () => deniedCapture)
+    denied.controller.start('session-1')
+    denied.socket.open()
+    denied.socket.message(consentEvent())
+    denied.controller.accept('session-1')
+    denied.socket.message(readyEvent())
+    denied.controller.beginCapture('session-1')
+    await vi.waitFor(() => {
+      expect(denied.controller.getSnapshot()).toMatchObject({
+        phase: 'error',
+        error: 'microphone permission was denied',
+      })
+    })
+    expect(deniedCapture.stop).toHaveBeenCalledWith(false)
+    expect(denied.socket.closes).toEqual([{ code: 4000, reason: 'invalid voice state' }])
+    expect(denied.socket.listenerCount()).toBe(0)
+    expect(() => { denied.controller.start('session-2') }).not.toThrow()
+    expect(denied.controller.getSnapshot()).toEqual({ phase: 'connecting', sessionId: 'session-2' })
+    expect(denied.socketFactory).toHaveBeenCalledTimes(2)
+    expect(denied.socket.closes).toHaveLength(1)
+
+    let handlers: VoiceAudioCaptureHandlers | undefined
+    const capped = fixture(new FakeSocket(), callbacks => {
+      handlers = callbacks
+      return { start: () => Promise.resolve(), stop: vi.fn() }
+    })
+    capped.controller.start('session-1')
+    capped.socket.open()
+    capped.socket.message(consentEvent())
+    capped.controller.accept('session-1')
+    capped.socket.message(readyEvent())
+    capped.controller.beginCapture('session-1')
+    await vi.waitFor(() => { expect(capped.controller.getSnapshot().phase).toBe('recording') })
+    handlers?.onChunk(new Uint8Array([1, 0]))
+    handlers?.onLimit()
+    handlers?.onLimit()
+    expect(JSON.parse(capped.socket.sent.at(-1) ?? '')).toEqual({ v: 1, type: 'turn.commit' })
+    expect(capped.socket.sent.filter(frame => frame.includes('turn.commit'))).toHaveLength(1)
+    expect(capped.controller.getSnapshot().phase).toBe('responding')
+  })
+
+  it('fails closed on malformed or out-of-phase manual audio', () => {
+    const odd = fixture()
+    odd.controller.start('session-1')
+    odd.socket.open()
+    odd.socket.message(consentEvent())
+    odd.controller.accept('session-1')
+    odd.socket.message(readyEvent())
+    odd.controller.appendPcm16('session-1', new Uint8Array([1]))
+    expect(odd.controller.getSnapshot()).toMatchObject({ phase: 'error', error: expect.stringContaining('PCM16') })
+
+    const earlyOutput = fixture()
+    earlyOutput.controller.start('session-1')
+    earlyOutput.socket.open()
+    earlyOutput.socket.message(consentEvent())
+    earlyOutput.controller.accept('session-1')
+    earlyOutput.socket.message(readyEvent())
+    earlyOutput.socket.message(new Uint8Array([1, 0]).buffer)
+    expect(earlyOutput.controller.getSnapshot()).toMatchObject({
+      phase: 'error',
+      error: 'voice websocket sent audio outside the active response',
+    })
+
+    const congested = fixture()
+    congested.controller.start('session-1')
+    congested.socket.open()
+    congested.socket.message(consentEvent())
+    congested.controller.accept('session-1')
+    congested.socket.message(readyEvent())
+    congested.socket.bufferedAmount = 512 * 1024
+    congested.controller.appendPcm16('session-1', new Uint8Array([1, 0]))
+    expect(congested.controller.getSnapshot()).toMatchObject({
+      phase: 'error',
+      error: 'voice websocket backpressure limit reached',
+    })
   })
 
   it('stops only the addressed session and fences every late callback', () => {
@@ -302,6 +502,63 @@ describe('browser voice controller', () => {
     controller.dispose()
   })
 
+  it('never starts audio after a preparing-audio observer stops or replaces the lifecycle', () => {
+    const stoppedCapture = { start: vi.fn(() => Promise.resolve()), stop: vi.fn() }
+    const stopped = fixture(new FakeSocket(), () => stoppedCapture)
+    stopped.controller.start('session-1')
+    stopped.socket.open()
+    stopped.socket.message(consentEvent())
+    stopped.controller.accept('session-1')
+    stopped.socket.message(readyEvent())
+    stopped.controller.subscribe(() => {
+      if (stopped.controller.getSnapshot().phase === 'preparing-audio') {
+        stopped.controller.stop('session-1')
+      }
+    })
+    stopped.controller.beginCapture('session-1')
+
+    expect(stopped.controller.getSnapshot()).toEqual({ phase: 'idle' })
+    expect(stopped.audioSink.prepare).not.toHaveBeenCalled()
+    expect(stoppedCapture.start).not.toHaveBeenCalled()
+    expect(stoppedCapture.stop).toHaveBeenCalledWith(false)
+    expect(stopped.audioSink.reset).toHaveBeenCalled()
+
+    const first = new FakeSocket()
+    const second = new FakeSocket()
+    const sockets = [first, second]
+    const replacementCapture = { start: vi.fn(() => Promise.resolve()), stop: vi.fn() }
+    const replacementSink = { prepare: vi.fn(() => Promise.resolve()), write: vi.fn(), reset: vi.fn() }
+    const controller = new VoiceClientController({
+      route: '/guarded-voice',
+      location: { href: 'https://localhost/', protocol: 'https:' },
+      socketFactory: () => sockets.shift() as unknown as WebSocket,
+      now: () => NOW,
+      audioSink: replacementSink,
+      captureFactory: () => replacementCapture,
+    })
+    controller.start('session-1')
+    first.open()
+    first.message(consentEvent())
+    controller.accept('session-1')
+    first.message(readyEvent())
+    let replaceOnce = true
+    controller.subscribe(() => {
+      if (replaceOnce && controller.getSnapshot().phase === 'preparing-audio') {
+        replaceOnce = false
+        controller.start('session-2')
+      }
+    })
+    controller.beginCapture('session-1')
+
+    expect(controller.getSnapshot()).toEqual({ phase: 'connecting', sessionId: 'session-2' })
+    expect(first.closes).toEqual([{ code: 1000, reason: 'replaced' }])
+    expect(replacementSink.prepare).not.toHaveBeenCalled()
+    expect(replacementCapture.start).not.toHaveBeenCalled()
+    expect(replacementCapture.stop).toHaveBeenCalledWith(false)
+    expect(replacementSink.reset).toHaveBeenCalled()
+    controller.dispose()
+  })
+
   it('surfaces server and transport failures without retaining resources', () => {
     const serverError = fixture()
     serverError.controller.start('session-1')
@@ -330,7 +587,7 @@ describe('browser voice controller', () => {
     bind.controller.start('session-1')
     bind.socket.open()
     expect(bind.controller.getSnapshot()).toMatchObject({ phase: 'error', error: 'bind send failed' })
-    expect(bind.socket.closes).toEqual([{ code: 1008, reason: 'invalid voice state' }])
+    expect(bind.socket.closes).toEqual([{ code: 4000, reason: 'invalid voice state' }])
     expect(bind.socket.listenerCount()).toBe(0)
 
     const accept = fixture()
@@ -340,7 +597,7 @@ describe('browser voice controller', () => {
     vi.spyOn(accept.socket, 'send').mockImplementation(() => { throw new Error('accept send failed') })
     accept.controller.accept('session-1')
     expect(accept.controller.getSnapshot()).toMatchObject({ phase: 'error', error: 'accept send failed' })
-    expect(accept.socket.closes).toEqual([{ code: 1008, reason: 'invalid voice state' }])
+    expect(accept.socket.closes).toEqual([{ code: 4000, reason: 'invalid voice state' }])
     expect(accept.socket.listenerCount()).toBe(0)
 
     const stop = fixture()
@@ -372,7 +629,7 @@ describe('browser voice controller', () => {
         sessionId: 'session-1',
         error: `unexpected voice stopped event in phase ${phase}`,
       })
-      expect(f.socket.closes).toEqual([{ code: 1008, reason: 'invalid voice state' }])
+      expect(f.socket.closes).toEqual([{ code: 4000, reason: 'invalid voice state' }])
       expect(f.socket.listenerCount()).toBe(0)
     },
   )
@@ -385,7 +642,7 @@ describe('browser voice controller', () => {
     f.controller.subscribe(healthy)
     f.controller.start('session-1')
     expect(logged).toHaveBeenCalledWith(
-      'guarded voice snapshot listener failed:',
+      'DSH Live Voice snapshot listener failed:',
       expect.objectContaining({ message: 'observer failed' }),
     )
     expect(healthy).toHaveBeenCalledTimes(1)

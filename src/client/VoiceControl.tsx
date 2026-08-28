@@ -1,7 +1,7 @@
 import type { VoiceControlProps } from './contract.js'
 import css from './voice.module.css'
 
-/** Compact guarded-voice control inside the composer tool row. */
+/** Compact DSH Live Voice control inside the composer tool row. */
 export function VoiceControl({ sessionId, useVoice, startVoice, stopVoice, t }: VoiceControlProps) {
   const voice = useVoice(snapshot => snapshot)
   const here = voice.sessionId === String(sessionId)

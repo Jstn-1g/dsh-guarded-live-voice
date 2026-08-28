@@ -46,7 +46,7 @@ describe('WebSocket carrier trust fence', () => {
       method: 'GET',
       headers: baseHeaders(),
       remoteAddress: '203.0.113.44',
-    }, ['127.0.0.1'])).toMatchObject({ ok: false, status: 403, reason: 'guarded voice is loopback-only' })
+    }, ['127.0.0.1'])).toMatchObject({ ok: false, status: 403, reason: 'DSH Live Voice is loopback-only' })
     expect(assessUpgradeRequest({
       method: 'GET',
       headers: baseHeaders(),

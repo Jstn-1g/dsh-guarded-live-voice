@@ -3,7 +3,9 @@ import css from './voice.module.css'
 
 /** User-visible disclosure and setup result; it never receives the bearer challenge. */
 export function VoicePanel({
-  sessionId, useVoice, startVoice, acceptDisclosure, stopVoice, t,
+  sessionId, useVoice, startVoice, acceptDisclosure, stopVoice,
+  beginVoiceCapture, finishVoiceCapture, getVoiceSnapshot,
+  isComposerBindingCurrent, claimVoiceDraftHandoff, inputActions, input, t,
 }: VoicePanelProps) {
   const voice = useVoice(snapshot => snapshot)
   if (voice.sessionId !== String(sessionId) || voice.phase === 'idle') return null
@@ -56,9 +58,110 @@ export function VoicePanel({
         <div className={css.panelHeading}>{t('panel.ready')}</div>
         <p className={css.detail}>{t('panel.readyDetail')}</p>
         <p className={css.meta}>{voice.model}</p>
+        <div className={css.actions}>
+          <button type="button" className={css.secondaryButton} onClick={() => { stopVoice(String(sessionId)) }}>
+            {t('control.stop')}
+          </button>
+          <button type="button" className={css.primaryButton} onClick={() => { beginVoiceCapture(String(sessionId)) }}>
+            {t('panel.record')}
+          </button>
+        </div>
+      </section>
+    )
+  }
+
+  if (voice.phase === 'preparing-audio') {
+    return (
+      <section className={css.panel} role="status">
+        <div className={css.panelHeading}>{t('panel.preparingAudio')}</div>
+        <p className={css.detail}>{t('panel.permissionDetail')}</p>
         <button type="button" className={css.secondaryButton} onClick={() => { stopVoice(String(sessionId)) }}>
-          {t('control.stop')}
+          {t('panel.cancel')}
         </button>
+      </section>
+    )
+  }
+
+  if (voice.phase === 'recording') {
+    return (
+      <section className={`${css.panel} ${css.panelRecording}`} role="status">
+        <div className={css.panelHeading}>{t('panel.recording')}</div>
+        <p className={css.detail}>{t('panel.recordingDetail')}</p>
+        <div className={css.actions}>
+          <button type="button" className={css.secondaryButton} onClick={() => { stopVoice(String(sessionId)) }}>
+            {t('panel.cancel')}
+          </button>
+          <button type="button" className={css.primaryButton} onClick={() => { finishVoiceCapture(String(sessionId)) }}>
+            {t('panel.finishTurn')}
+          </button>
+        </div>
+      </section>
+    )
+  }
+
+  if (voice.phase === 'responding' || voice.phase === 'completed') {
+    const composerBindingCurrent = isComposerBindingCurrent(String(sessionId), inputActions)
+    const draftConflict = (voice.draftRevision !== undefined && input.draftRev !== voice.draftRevision)
+      || !composerBindingCurrent
+    return (
+      <section className={`${css.panel} ${voice.phase === 'completed' ? css.panelReady : ''}`} role="status">
+        <div className={css.panelHeading}>
+          {t(voice.phase === 'completed' ? 'panel.completed' : 'panel.responding')}
+        </div>
+        <dl className={css.transcripts}>
+          <div>
+            <dt>{t('panel.userTranscript')}</dt>
+            <dd>{voice.userTranscript ?? ''}</dd>
+          </div>
+          <div>
+            <dt>{t('panel.assistantTranscript')}</dt>
+            <dd>{voice.assistantTranscript ?? ''}</dd>
+          </div>
+        </dl>
+        {draftConflict ? <p className={css.detail}>{t('panel.draftConflict')}</p> : null}
+        <div className={css.actions}>
+          <button type="button" className={css.secondaryButton} onClick={() => { stopVoice(String(sessionId)) }}>
+            {t('control.stop')}
+          </button>
+          {voice.phase === 'completed'
+            && voice.turnStatus === 'completed'
+            && voice.userTranscriptFinal === true
+            && voice.userTranscript !== undefined
+            && voice.userTranscript.trim() !== ''
+            && voice.draftRevision !== undefined
+            ? (
+                <button
+                  type="button"
+                  className={css.primaryButton}
+                  disabled={input.draftRev !== voice.draftRevision || !composerBindingCurrent}
+                  title={input.draftRev === voice.draftRevision && composerBindingCurrent
+                    ? undefined
+                    : t('panel.draftConflict')}
+                  onClick={() => {
+                    const current = getVoiceSnapshot()
+                    if (current.phase === 'completed'
+                      && current.sessionId === String(sessionId)
+                      && current.turnStatus === 'completed'
+                      && current.userTranscriptFinal === true
+                      && current.userTranscript !== undefined
+                      && current.userTranscript.trim() !== ''
+                      && current.userTranscript === voice.userTranscript
+                      && current.draftRevision === voice.draftRevision
+                      && input.draftRev === current.draftRevision
+                      && claimVoiceDraftHandoff(
+                        String(sessionId),
+                        inputActions,
+                        current.draftRevision,
+                      )) {
+                      inputActions.setDraft(current.userTranscript)
+                    }
+                  }}
+                >
+                  {t('panel.useUserAsDraft')}
+                </button>
+              )
+            : null}
+        </div>
       </section>
     )
   }
@@ -83,7 +186,9 @@ export function VoicePanel({
         <button type="button" className={css.secondaryButton} onClick={() => { stopVoice(String(sessionId)) }}>
           {t('panel.cancel')}
         </button>
-        <button type="button" className={css.primaryButton} onClick={() => { acceptDisclosure(String(sessionId)) }}>
+        <button type="button" className={css.primaryButton} onClick={() => {
+          acceptDisclosure(String(sessionId), input.draftRev, inputActions)
+        }}>
           {t('panel.accept')}
         </button>
       </div>

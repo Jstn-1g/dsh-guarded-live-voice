@@ -19,17 +19,36 @@ private transcripts, or private workspace content in a public issue.
   acceptable `Sec-Fetch-Site`, and an available bounded-connection slot. These
   are network-exposure and DNS-rebinding/cross-site fences, not authentication.
 - Provider proposals carry no execution authority.
-- No audio or provider deltas exist in milestone two. A future transport must
-  keep raw audio and partial deltas ephemeral and clear them at every lifecycle
-  boundary.
+- The v0.3 preview path permits one bounded manual PCM turn after accepted
+  disclosure. The package does not durably persist raw audio or partial
+  provider deltas, and releases its owned transient resources on lifecycle
+  teardown. The included browser path requests microphone permission only from
+  its explicit record gesture, resamples through an owned AudioWorklet, and
+  schedules bounded PCM playback without durable storage. An integrator that
+  supplies a custom PCM sink owns that sink's retention behavior.
 - Invalid, oversized, stale, ambiguous, or out-of-order input fails closed.
 
-The registered plugin does not stream audio or connect to a live provider. The
-source tree contains an internal configuration-only transport used by
-deterministic fake-provider tests. It is not exported from the package root, is
-not called by `apply`, exposes no application-data send capability, and must be
-composed behind the exact authority and consumed-consent boundary before any
-public provider path is enabled.
+When explicitly configured with a DashScope workspace and credential reference,
+the registered v0.3 preview path can connect to Qwen after exact disclosure
+acceptance and stream only bounded PCM input. It exports no DSH history, files,
+workspace instructions, arbitrary text input, system instruction, or tool
+schema. Provider transcript/audio output is revalidated against the exact live
+session and workspace lease before it reaches the browser. Completed assistant
+text stays proposal-only. An explicit action may copy only the final user
+transcript into the exact current Session's composer after re-reading the voice
+lifecycle and matching both the draft revision and the opaque per-Session
+composer action identity captured at consent. That one-shot binding blocks a
+replacement Session that reuses the same textual ID, but no path submits a
+prompt or invokes a tool. The available `setDraft` action is not an atomic
+compare-and-set with concurrent typing, so this is not a collision-proof
+overwrite guarantee.
+
+The package-root `openQwenManualTurn` primitive owns provider destination,
+protocol, and resource controls. Direct Host-side callers must compose an
+equivalent exact-authority and consumed-consent boundary; the registered
+`apply` path does so. The included capture/playback implementation is
+deterministic-fake tested but not yet proven in a packed DSH Desktop install or
+against a credentialed Qwen endpoint.
 
 ## Known limitation
 

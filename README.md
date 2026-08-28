@@ -1,12 +1,16 @@
-# dsh-guarded-live-voice
+# DSH Live Voice
 
-A guarded DeepSeek Harness voice foundation with an exact-session Host boundary
-and a lazy browser disclosure UI. Live microphone and audio remain disabled.
+A safety-first live-voice add-on for DeepSeek Harness with an exact-session Host
+boundary, a lazy browser disclosure UI, and one bounded manual audio turn. The
+v0.3 preview branch includes explicit-gesture microphone capture and
+bounded playback; credentialed provider and packed Desktop behavior are not yet
+proven.
 
 ## Current status
 
-Milestone two adds the browser-side consent surface to the milestone-one Host
-boundary:
+The v0.2.0 pre-release, published under the former
+`dsh-guarded-live-voice` name, established the browser-side consent surface and
+exact-session Host boundary:
 
 - a lazy DSH browser module with composer-control and disclosure-panel slots;
 - structured Host-to-browser boot data containing only the non-secret WebSocket
@@ -22,19 +26,47 @@ boundary:
   cleanup; and
 - bounded proposal parsing with no execution authority.
 
-Milestone three groundwork adds an internal, configuration-only Qwen session
-transport with deterministic fake-provider coverage. It can send only one fixed
-text-only, manual-turn configuration event and exposes no audio, transcript,
-instruction, tool, DSH context, raw socket, or send capability. The provider
-must confirm the exact requested model, session identity, modalities, and turn
-detection before the transport reports readiness.
+This v0.3 preview branch adds a bounded manual-turn foundation behind that
+same consumed-consent and authority lease:
 
-The registered plugin and installed package do not request microphone access,
-transmit audio or text, open a Qwen provider connection, perform transcription
-or playback, or insert a proposal into the composer. The internal transport is
-not exported from the package root and is not called by `apply`. Binary
-WebSocket frames remain rejected. Version 0.2.0 is a development milestone, not
-a marketplace-ready voice product.
+- an audio-mode Qwen handshake that requires the requested model, stable
+  provider session identity, `pcm` input/output, text+audio modalities, and
+  manual `turn_detection: null`;
+- one PCM16 mono/16 kHz input turn, limited to 32 KiB chunks and 30 seconds,
+  followed by exactly one explicit commit and `response.create`;
+- bounded complete user/assistant transcript snapshots and PCM16 mono/24 kHz
+  output, including provider/response/item/index identity checks and rejection
+  of tool or other non-message capabilities;
+- provider and browser backpressure limits, one-minute output ceiling,
+  a 60-second uncommitted-input deadline, a 90-second response deadline,
+  fail-closed parsing, and deterministic terminal teardown;
+- authority revalidation after provider open and before every audio append or
+  commit, including session-object reuse and workspace-move rejection; and
+- a final user-transcript “Use my transcript as draft” action that is available
+  only after a completed response with a final user transcript and while the
+  composer revision and opaque, per-Session action identity captured at consent
+  remain unchanged. The binding is consumed immediately before `setDraft`, so
+  even same-text-ID Session replacement and repeated clicks fail closed. The
+  current voice lifecycle and exact Session are also re-read at the click. This
+  still is not an atomic compare-and-set with concurrent typing. It never
+  submits;
+- an explicit “Start recording” gesture that requests microphone permission,
+  an AudioWorklet that downmixes and continuously resamples browser audio to
+  PCM16 mono/16 kHz, 100 ms bounded input frames, and deterministic cleanup on
+  denial, cancellation, cap, processing failure, session failure, or unload;
+  and
+- ordered PCM16 mono/24 kHz Web Audio playback with five-second and 256-live-
+  source ceilings, reset ownership, and fail-closed backpressure.
+
+The branch still does **not** support continuous conversation or barge-in, send
+DSH history/files/instructions, call tools, submit the composer, or write custom
+session events. Capture, resampling, framing, cleanup, playback ordering, and
+backpressure are deterministic-fake tested. Packed composition with the
+official Harness is verified against a local fake Qwen server; no
+credential-backed audio roundtrip, physical-device audio, or packaged Desktop
+browser smoke is claimed. This is not a marketplace-ready voice product and is
+not “ChatGPT Live parity.” DSH Live Voice is the product name; the guarded
+consent and authority model remains its security architecture.
 
 The disclosure flow is user-visible, but it is not cryptographic proof that a
 human accepted it. The one-shot challenge proves control of that local client
@@ -44,13 +76,38 @@ a human or resist a malicious same-user local process.
 
 ## Safety boundary
 
-The registered plugin sends no data to Qwen because it opens no provider
-connection. A future audio milestone is designed to exclude DSH history, files,
-workspace instructions, memory, and project context. Its provider output may
-create only bounded proposal data for the exact bound session. Composer
-integration is not implemented yet; when added, it must fill the ordinary draft
-without submitting a message, calling a tool, writing a custom session event, or
-executing work.
+Only PCM supplied through the bounded browser-controller seam after accepted
+disclosure can reach Qwen. No DSH history, files, workspace instructions,
+memory, arbitrary text, system instruction, or tool schema crosses that
+boundary. The final user transcript can become an ordinary composer draft only
+through an explicit button, an exact-current-Session recheck, the opaque
+per-Session composer action identity captured at consent, and a draft-revision
+check. The identity binding is one-shot and blocks same-ID Session replacement.
+Assistant text remains a voice preview and is never inserted by that action.
+The current DSH action is not an atomic
+compare-and-set, so the check is not a collision-proof overwrite guard. The
+plugin cannot submit a message, call a tool, write a custom session event, or
+execute work.
+
+## Install the preview
+
+The release tag includes prebuilt Host and browser artifacts, so installation
+does not require a source build:
+
+```sh
+dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.1
+```
+
+Restart the Web profile after installation. Existing v0.2.0 testers should
+remove `dsh-guarded-live-voice` before installing the renamed package. The
+internal Cordis row id `guarded-live-voice`, default `/guarded-voice` route, and
+hidden browser protocol/composition keys remain stable for this transition so
+existing profiles and mixed cached bundles do not silently duplicate or stop
+matching the plugin.
+
+This preview has deterministic and packed fake-provider coverage but still
+requires the live-provider and physical-device checks tracked in the release
+gate before a release candidate or stable release.
 
 ## Development
 
@@ -67,12 +124,13 @@ and a dry-run package-content check.
 
 ## Development configuration
 
-The bundle inserts a `guarded-live-voice` Cordis row. A profile override will
+The bundle inserts the compatibility-stable `guarded-live-voice` Cordis row
+with the `dsh-live-voice` package name. A profile override will
 need an Alibaba Cloud Model Studio workspace id before provider authorization:
 
 ```yaml
 - id: guarded-live-voice
-  name: dsh-guarded-live-voice
+  name: dsh-live-voice
   config:
     credentialRef: DASHSCOPE_API_KEY
     dashscopeWorkspaceId: your-workspace-id
@@ -82,11 +140,11 @@ need an Alibaba Cloud Model Studio workspace id before provider authorization:
     maxConnections: 8
 ```
 
-After accepted disclosure, the registered plugin validates the allowlisted
-endpoint and credential availability only; it does not connect to Qwen. The
-internal configuration-only transport will remain outside the public package API
-until it is composed behind the same exact authority and consumed-consent
-boundary.
+After accepted disclosure, the preview opens the allowlisted Qwen
+endpoint for one exact-session manual turn and resolves the credential only on
+the Host. A second explicit button starts browser capture; finishing it commits
+only that bounded provider turn. This path is fake-tested but still needs a
+packed Desktop smoke and credential-backed Qwen roundtrip.
 
 Configure the credential through DSH's credential provider. Never put a secret
 value in `cordis.patch.yml`, browser storage, an issue, or a log.

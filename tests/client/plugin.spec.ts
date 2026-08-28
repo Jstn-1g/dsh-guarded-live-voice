@@ -77,6 +77,12 @@ function fixture() {
   return { ctx, cleanups, declarations, registrations, localeCleanup }
 }
 
+function browserWindow(): EventTarget & { readonly location: { readonly href: string, readonly protocol: string } } {
+  return Object.assign(new EventTarget(), {
+    location: { href: 'http://localhost:2026/', protocol: 'http:' },
+  })
+}
+
 describe('lazy browser plugin', () => {
   it('exports only the function-plugin face and declares its exact services', () => {
     expect(Object.keys(client).sort()).toEqual(['apply', 'inject'])
@@ -85,15 +91,19 @@ describe('lazy browser plugin', () => {
 
   it('registers delayed exact-session slots without opening a socket at module activation', () => {
     const constructSocket = vi.fn(() => { throw new Error('must remain lazy') })
-    vi.stubGlobal('window', {
-      location: { href: 'http://localhost:2026/', protocol: 'http:' },
-    })
+    const constructAudioContext = vi.fn(() => { throw new Error('must remain gesture-lazy') })
+    const getUserMedia = vi.fn(() => Promise.reject(new Error('must remain gesture-lazy')))
+    vi.stubGlobal('window', browserWindow())
     vi.stubGlobal('WebSocket', constructSocket)
+    vi.stubGlobal('AudioContext', constructAudioContext)
+    vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } })
     ;(globalThis as Record<string, unknown>)[CLIENT_BOOT_GLOBAL] = { v: 1, route: '/guarded-voice' }
     const f = fixture()
 
     client.apply(f.ctx as never)
     expect(constructSocket).not.toHaveBeenCalled()
+    expect(constructAudioContext).not.toHaveBeenCalled()
+    expect(getUserMedia).not.toHaveBeenCalled()
     expect(f.ctx.locale.register).toHaveBeenCalledTimes(1)
     expect(f.declarations.map(entry => entry.name)).toEqual([
       'conversation.input.left',
@@ -122,6 +132,8 @@ describe('lazy browser plugin', () => {
     const first = firstInject?.('session-1') as { hooks: { voice: unknown } } | undefined
     const second = secondInject?.('session-1') as { hooks: { voice: unknown } } | undefined
     expect(first?.hooks.voice).toBe(second?.hooks.voice)
+    expect(constructAudioContext).not.toHaveBeenCalled()
+    expect(getUserMedia).not.toHaveBeenCalled()
 
     for (const cleanup of f.cleanups.reverse()) cleanup()
     expect(f.localeCleanup).toHaveBeenCalledTimes(1)
@@ -129,9 +141,7 @@ describe('lazy browser plugin', () => {
 
   it('composes through the official SlotRegistry and a real React render, then unloads cleanly', async () => {
     const constructSocket = vi.fn(() => { throw new Error('render must remain transport-lazy') })
-    vi.stubGlobal('window', {
-      location: { href: 'http://localhost:2026/', protocol: 'http:' },
-    })
+    vi.stubGlobal('window', browserWindow())
     vi.stubGlobal('WebSocket', constructSocket)
     ;(globalThis as Record<string, unknown>)[CLIENT_BOOT_GLOBAL] = { v: 1, route: '/guarded-voice' }
 
@@ -150,7 +160,7 @@ describe('lazy browser plugin', () => {
       },
     }
     ctx.provide('locale', locale)
-    const fiber = ctx.plugin({ name: 'guarded-live-voice-test', inject: [...client.inject], apply: client.apply })
+    const fiber = ctx.plugin({ name: 'dsh-live-voice-test', inject: [...client.inject], apply: client.apply })
     await fiber.await()
     expect(slots.entries('conversation.input.left')).toHaveLength(0)
     expect(slots.entries('conversation.input.dock')).toHaveLength(0)
@@ -182,7 +192,7 @@ describe('lazy browser plugin', () => {
       stopVoice: injected.stopVoice,
       t: locale.bind('guardedVoice'),
     }))
-    expect(markup).toContain('Open guarded voice setup')
+    expect(markup).toContain('Open DSH Live Voice')
     expect(constructSocket).not.toHaveBeenCalled()
 
     await fiber.dispose()
@@ -192,9 +202,7 @@ describe('lazy browser plugin', () => {
   })
 
   it('fails before registration when the Host bootstrap is absent or expanded', () => {
-    vi.stubGlobal('window', {
-      location: { href: 'http://localhost:2026/', protocol: 'http:' },
-    })
+    vi.stubGlobal('window', browserWindow())
     const missing = fixture()
     expect(() => client.apply(missing.ctx as never)).toThrow(/bootstrap/u)
     expect(missing.declarations).toEqual([])

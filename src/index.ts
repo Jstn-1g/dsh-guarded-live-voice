@@ -9,6 +9,7 @@ import { guardedVoiceClientBootInjection } from './host/boot.js'
 import { assertTrustedHosts } from './host/carrier.js'
 import { ConsentChallenges } from './host/consent.js'
 import { GuardedVoiceGateway } from './host/gateway.js'
+import { ManualTurnCoordinator } from './host/manual-turn.js'
 import {
   DEFAULT_QWEN_REALTIME_MODEL,
   buildQwenRealtimeEndpoint,
@@ -16,6 +17,7 @@ import {
   type QwenRealtimeModel,
 } from './host/qwen.js'
 import { VoiceSessionManager } from './host/session-manager.js'
+import { openQwenManualTurn } from './host/qwen-manual-turn.js'
 import { CLIENT_BOOT_VERSION, parseGuardedVoiceClientBoot } from './shared/boot.js'
 import { GuardedVoiceError } from './shared/errors.js'
 
@@ -45,6 +47,31 @@ export {
   type GuardedProposal,
 } from './host/proposal.js'
 export { VoiceSessionManager } from './host/session-manager.js'
+export {
+  ManualTurnCoordinator,
+  type ManualTurnSink,
+  type OpenManualTurnProvider,
+} from './host/manual-turn.js'
+export {
+  DEFAULT_QWEN_INPUT_TIMEOUT_MS,
+  DEFAULT_QWEN_RESPONSE_TIMEOUT_MS,
+  MAX_QWEN_BUFFERED_BYTES,
+  MAX_QWEN_INPUT_CHUNK_BYTES,
+  MAX_QWEN_INPUT_TURN_BYTES,
+  MAX_QWEN_OUTPUT_CHUNK_BYTES,
+  MAX_QWEN_OUTPUT_TURN_BYTES,
+  MAX_QWEN_REALTIME_EVENT_BYTES,
+  MAX_QWEN_PHASE_TIMEOUT_MS,
+  MAX_QWEN_TRANSCRIPT_LENGTH,
+  openQwenManualTurn,
+  type OpenQwenManualTurnOptions,
+  type QwenManualTurnDependencies,
+} from './host/qwen-manual-turn.js'
+export type {
+  ManualTurnProviderEvent,
+  ManualTurnProviderSession,
+  ManualTurnTranscriptRole,
+} from './host/provider.js'
 export { GuardedVoiceError, type GuardedVoiceErrorCode } from './shared/errors.js'
 export {
   MAX_CONTROL_BYTES,
@@ -113,7 +140,7 @@ function assertRoute(route: string): void {
   parseGuardedVoiceClientBoot({ v: CLIENT_BOOT_VERSION, route })
 }
 
-/** Register the guarded Host/browser disclosure carrier. Audio remains disabled in milestone two. */
+/** Register the exact-session disclosure carrier and one bounded manual provider turn. */
 export function apply(ctx: Context, input?: Config): void {
   const config = resolvedConfig(input)
   assertRoute(config.route)
@@ -149,8 +176,32 @@ export function apply(ctx: Context, input?: Config): void {
       return { provider: 'qwen', model }
     },
   )
+  const turns = new ManualTurnCoordinator(
+    manager,
+    async (_binding, authorization, signal) => {
+      signal.throwIfAborted()
+      if (authorization.provider !== 'qwen' || authorization.model !== model) {
+        throw new GuardedVoiceError('provider-unconfigured', 'provider authorization does not match Qwen configuration')
+      }
+      if (config.dashscopeWorkspaceId === undefined) {
+        throw new GuardedVoiceError('provider-unconfigured', 'DashScope workspace id is not configured')
+      }
+      return openQwenManualTurn({
+        workspaceId: config.dashscopeWorkspaceId,
+        model,
+        signal,
+        resolveCredential: async (credentialSignal) => {
+          credentialSignal.throwIfAborted()
+          const resolved = await ctx.credentials.resolve(ref)
+          credentialSignal.throwIfAborted()
+          return resolved?.value
+        },
+      })
+    },
+  )
   const gateway = new GuardedVoiceGateway({
     manager,
+    turns,
     trustedHosts,
     maxConnections: config.maxConnections,
     logger: { warn: error => { ctx.logger.warn(error) } },
@@ -162,7 +213,7 @@ export function apply(ctx: Context, input?: Config): void {
   ctx.effect(() => ctx.webServer.registerUpgrade({
     path: config.route,
     handler: (request, socket, head) => { gateway.handleUpgrade(request, socket, head) },
-  }), `guarded-live-voice: ${config.route} upgrade`)
-  ctx.effect(() => () => { gateway.close() }, 'guarded-live-voice: gateway cleanup')
+  }), `dsh-live-voice: ${config.route} upgrade`)
+  ctx.effect(() => () => { gateway.close() }, 'dsh-live-voice: gateway cleanup')
   ctx.on('session/disposed', (session) => { gateway.stopSession(String(session.id)) })
 }

@@ -16,7 +16,7 @@ describe('wire controls', () => {
     }
   })
 
-  it('accepts only the three exact version-one client controls', () => {
+  it('accepts only the four exact version-one client controls', () => {
     expect(parseClientControl('{"v":1,"type":"bind","sessionId":"session-1"}')).toEqual({
       v: WIRE_VERSION,
       type: 'bind',
@@ -25,6 +25,7 @@ describe('wire controls', () => {
     expect(parseClientControl('{"v":1,"type":"consent.accept","challenge":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'))
       .toEqual({ v: 1, type: 'consent.accept', challenge: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' })
     expect(parseClientControl('{"v":1,"type":"stop"}')).toEqual({ v: 1, type: 'stop' })
+    expect(parseClientControl('{"v":1,"type":"turn.commit"}')).toEqual({ v: 1, type: 'turn.commit' })
   })
 
   it.each([
@@ -36,6 +37,7 @@ describe('wire controls', () => {
     '{"v":1,"type":"bind","sessionId":"session","extra":true}',
     '{"v":1,"type":"consent.accept","challenge":"short"}',
     '{"v":1,"type":"stop","extra":true}',
+    '{"v":1,"type":"turn.commit","extra":true}',
     '{"v":1,"type":"audio"}',
   ])('rejects invalid control %s', (raw) => {
     expect(() => parseClientControl(raw)).toThrow(/control|frame|bind|consent|stop/u)
@@ -65,7 +67,7 @@ describe('wire controls', () => {
         exportedContext: 'none',
         executionAuthority: 'none',
         providerRetention: 'not specified for Qwen realtime audio',
-        currentMilestone: 'no microphone access or audio transmission',
+        currentMilestone: 'one bounded manual audio turn after acceptance',
       },
     }
     expect(parseServerControl(JSON.stringify(consent))).toEqual(consent)
@@ -81,6 +83,10 @@ describe('wire controls', () => {
     expect(parseServerControl('{"v":1,"type":"stopped"}')).toEqual({ v: 1, type: 'stopped' })
     expect(parseServerControl('{"v":1,"type":"error","code":"closed","message":"safe message"}'))
       .toEqual({ v: 1, type: 'error', code: 'closed', message: 'safe message' })
+    expect(parseServerControl('{"v":1,"type":"transcript","role":"assistant","text":"line one\\nline two","final":true}'))
+      .toEqual({ v: 1, type: 'transcript', role: 'assistant', text: 'line one\nline two', final: true })
+    expect(parseServerControl('{"v":1,"type":"turn.done","status":"completed"}'))
+      .toEqual({ v: 1, type: 'turn.done', status: 'completed' })
   })
 
   it.each([
@@ -93,6 +99,9 @@ describe('wire controls', () => {
     '{"v":1,"type":"ready","sessionId":"s","workspaceId":"w","provider":"qwen","model":" bad","authority":"proposal-only"}',
     '{"v":1,"type":"ready","sessionId":"s","workspaceId":"w","provider":"other","model":"qwen-audio-3.0-realtime-plus","authority":"proposal-only"}',
     '{"v":1,"type":"consent.required","challenge":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expiresAt":0,"sessionId":"s","workspaceId":"w","provider":"qwen","disclosure":{}}',
+    '{"v":1,"type":"transcript","role":"tool","text":"x","final":true}',
+    '{"v":1,"type":"transcript","role":"assistant","text":"nul\\u0000","final":true}',
+    '{"v":1,"type":"turn.done","status":"failed"}',
   ])('rejects malformed server event %s', (raw) => {
     expect(() => parseServerControl(raw)).toThrow(/server|event|frame/u)
   })

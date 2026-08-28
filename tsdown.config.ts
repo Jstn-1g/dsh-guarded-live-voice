@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { transform } from 'lightningcss'
 import { defineConfig, type UserConfig } from 'tsdown'
 
-const ID = 'dsh-guarded-live-voice'
+const ID = 'dsh-live-voice'
 const EXTERNALS = new Set([
   'react',
   'react/jsx-runtime',

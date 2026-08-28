@@ -25,5 +25,5 @@ export class GuardedVoiceError extends Error {
 
 export function asGuardedVoiceError(error: unknown): GuardedVoiceError {
   if (error instanceof GuardedVoiceError) return error
-  return new GuardedVoiceError('invalid-state', 'guarded voice operation failed')
+  return new GuardedVoiceError('invalid-state', 'DSH Live Voice operation failed')
 }

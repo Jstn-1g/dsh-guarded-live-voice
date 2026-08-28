@@ -1,26 +1,24 @@
 # Privacy boundary
 
-The registered plugin requests no microphone permission, sends no audio or
-text, and opens no provider connection. After accepted disclosure, it checks
-only the Host-side provider configuration and credential availability.
+The branch requests microphone permission only from the explicit record button,
+after the separate destination/authority disclosure has been accepted. Its
+owned AudioWorklet downmixes and resamples browser audio to bounded PCM16
+mono/16 kHz frames. Provider PCM16 mono/24 kHz is scheduled through an owned,
+bounded playback context. Current verification uses deterministic browser
+dependencies and a local fake Qwen server, not a live credential.
 
-The source tree includes an internal configuration-only transport that is not
-exported from the package root or called by `apply`. Its default dialer could
-open an authenticated Qwen session only if repository code explicitly invokes
-it; current verification uses a deterministic local fake and no live
-credential. The transport can send only one fixed text-only/manual-turn update
-and exposes no application-data send capability.
+The provider request contains no DSH conversation history, files, workspace
+instructions, memory, arbitrary text input, custom system instruction, or tool
+definition. It contains only the fixed audio-mode/manual-turn configuration and
+the PCM bytes deliberately supplied after acceptance.
 
-The planned provider request contains only a static guard prompt and live audio
-or text the user deliberately supplies after explicit disclosure acceptance. It
-excludes DSH conversation history, files, workspace instructions, memory, and
-project context.
-
-Raw microphone audio, provider audio deltas, and partial transcripts must not
-be persisted by this plugin. The browser must discard them on stop, session
-change, unmount, connection failure, or provider failure. A final proposal is
-shown for review and may be copied into the normal composer, but is never sent
-automatically.
+Input PCM, provider audio deltas, and transcripts are not persisted by this
+plugin. The in-memory controller and provider resources are discarded on stop,
+session change, unmount, connection failure, provider failure, or authority
+change. A completed final user transcript may be copied into the normal
+composer only through an explicit revision-checked action and is never sent
+automatically. The draft-revision check immediately before `setDraft` is not an
+atomic compare-and-set and must not be treated as collision-proof.
 
 These plugin-side non-persistence requirements do not imply provider zero
 retention or deletion. Exact Qwen realtime-audio retention is not currently

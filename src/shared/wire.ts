@@ -1,4 +1,5 @@
 import { GuardedVoiceError } from './errors.js'
+import { MAX_VOICE_TRANSCRIPT_LENGTH } from './audio.js'
 
 export const WIRE_VERSION = 1 as const
 export const MAX_CONTROL_BYTES = 8 * 1024
@@ -6,6 +7,7 @@ export const MAX_SESSION_ID_LENGTH = 256
 export const MAX_MODEL_LENGTH = 128
 export const MAX_ERROR_CODE_LENGTH = 64
 export const MAX_ERROR_MESSAGE_LENGTH = 2_048
+export const MAX_TRANSCRIPT_LENGTH = MAX_VOICE_TRANSCRIPT_LENGTH
 export const CHALLENGE_PATTERN = /^[A-Za-z0-9_-]{32,128}$/
 
 export interface BindControl {
@@ -25,7 +27,12 @@ export interface StopControl {
   readonly type: 'stop'
 }
 
-export type ClientControl = BindControl | ConsentAcceptControl | StopControl
+export interface TurnCommitControl {
+  readonly v: typeof WIRE_VERSION
+  readonly type: 'turn.commit'
+}
+
+export type ClientControl = BindControl | ConsentAcceptControl | TurnCommitControl | StopControl
 
 export interface ConsentRequiredEvent {
   readonly v: typeof WIRE_VERSION
@@ -40,7 +47,7 @@ export interface ConsentRequiredEvent {
     readonly exportedContext: 'none'
     readonly executionAuthority: 'none'
     readonly providerRetention: 'not specified for Qwen realtime audio'
-    readonly currentMilestone: 'no microphone access or audio transmission'
+    readonly currentMilestone: 'one bounded manual audio turn after acceptance'
   }
 }
 
@@ -66,7 +73,28 @@ export interface StoppedEvent {
   readonly type: 'stopped'
 }
 
-export type ServerControl = ConsentRequiredEvent | ReadyEvent | ErrorEvent | StoppedEvent
+export interface TranscriptEvent {
+  readonly v: typeof WIRE_VERSION
+  readonly type: 'transcript'
+  readonly role: 'user' | 'assistant'
+  /** Complete transcript observed so far. */
+  readonly text: string
+  readonly final: boolean
+}
+
+export interface TurnDoneEvent {
+  readonly v: typeof WIRE_VERSION
+  readonly type: 'turn.done'
+  readonly status: 'completed' | 'cancelled'
+}
+
+export type ServerControl =
+  | ConsentRequiredEvent
+  | ReadyEvent
+  | ErrorEvent
+  | StoppedEvent
+  | TranscriptEvent
+  | TurnDoneEvent
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -129,6 +157,13 @@ export function parseClientControl(raw: string): ClientControl {
     return { v: WIRE_VERSION, type: 'stop' }
   }
 
+  if (parsed.type === 'turn.commit') {
+    if (!hasOnlyKeys(parsed, ['v', 'type'])) {
+      throw new GuardedVoiceError('invalid-message', 'turn commit frame is invalid')
+    }
+    return { v: WIRE_VERSION, type: 'turn.commit' }
+  }
+
   throw new GuardedVoiceError('invalid-message', 'control frame type is not supported')
 }
 
@@ -179,7 +214,7 @@ export function parseServerControl(raw: string): ServerControl {
       || parsed.disclosure.exportedContext !== 'none'
       || parsed.disclosure.executionAuthority !== 'none'
       || parsed.disclosure.providerRetention !== 'not specified for Qwen realtime audio'
-      || parsed.disclosure.currentMilestone !== 'no microphone access or audio transmission') {
+      || parsed.disclosure.currentMilestone !== 'one bounded manual audio turn after acceptance') {
       throw new GuardedVoiceError('invalid-message', 'consent-required event is invalid')
     }
     return {
@@ -195,7 +230,7 @@ export function parseServerControl(raw: string): ServerControl {
         exportedContext: 'none',
         executionAuthority: 'none',
         providerRetention: 'not specified for Qwen realtime audio',
-        currentMilestone: 'no microphone access or audio transmission',
+        currentMilestone: 'one bounded manual audio turn after acceptance',
       },
     }
   }
@@ -234,6 +269,33 @@ export function parseServerControl(raw: string): ServerControl {
       throw new GuardedVoiceError('invalid-message', 'stopped event is invalid')
     }
     return { v: WIRE_VERSION, type: 'stopped' }
+  }
+
+
+  if (parsed.type === 'transcript') {
+    if (!hasOnlyKeys(parsed, ['v', 'type', 'role', 'text', 'final'])
+      || (parsed.role !== 'user' && parsed.role !== 'assistant')
+      || typeof parsed.text !== 'string'
+      || parsed.text.length > MAX_TRANSCRIPT_LENGTH
+      || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(parsed.text)
+      || typeof parsed.final !== 'boolean') {
+      throw new GuardedVoiceError('invalid-message', 'transcript event is invalid')
+    }
+    return {
+      v: WIRE_VERSION,
+      type: 'transcript',
+      role: parsed.role,
+      text: parsed.text,
+      final: parsed.final,
+    }
+  }
+
+  if (parsed.type === 'turn.done') {
+    if (!hasOnlyKeys(parsed, ['v', 'type', 'status'])
+      || (parsed.status !== 'completed' && parsed.status !== 'cancelled')) {
+      throw new GuardedVoiceError('invalid-message', 'turn-done event is invalid')
+    }
+    return { v: WIRE_VERSION, type: 'turn.done', status: parsed.status }
   }
 
   throw new GuardedVoiceError('invalid-message', 'server control frame type is not supported')

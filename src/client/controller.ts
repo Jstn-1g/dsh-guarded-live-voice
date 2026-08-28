@@ -1,4 +1,11 @@
 import { CLIENT_BOOT_VERSION, parseGuardedVoiceClientBoot } from '../shared/boot.js'
+import {
+  MAX_INPUT_PCM16_CHUNK_BYTES,
+  MAX_INPUT_PCM16_TURN_BYTES,
+  MAX_OUTPUT_PCM16_CHUNK_BYTES,
+  MAX_OUTPUT_PCM16_TURN_BYTES,
+  MAX_VOICE_SOCKET_BUFFERED_BYTES,
+} from '../shared/audio.js'
 import { WIRE_VERSION, parseServerControl } from '../shared/wire.js'
 
 export type VoiceClientPhase =
@@ -7,6 +14,10 @@ export type VoiceClientPhase =
   | 'awaiting-consent'
   | 'authorizing'
   | 'ready'
+  | 'preparing-audio'
+  | 'recording'
+  | 'responding'
+  | 'completed'
   | 'error'
 
 export interface VoiceDisclosureView {
@@ -16,7 +27,7 @@ export interface VoiceDisclosureView {
   readonly exportedContext: 'none'
   readonly executionAuthority: 'none'
   readonly providerRetention: 'not specified for Qwen realtime audio'
-  readonly currentMilestone: 'no microphone access or audio transmission'
+  readonly currentMilestone: 'one bounded manual audio turn after acceptance'
 }
 
 export interface VoiceClientSnapshot {
@@ -25,11 +36,20 @@ export interface VoiceClientSnapshot {
   readonly disclosure?: VoiceDisclosureView
   readonly model?: string
   readonly error?: string
+  readonly userTranscript?: string
+  readonly assistantTranscript?: string
+  readonly userTranscriptFinal?: boolean
+  readonly assistantTranscriptFinal?: boolean
+  readonly turnStatus?: 'completed' | 'cancelled'
+  /** Composer revision captured at the visible acceptance gesture. */
+  readonly draftRevision?: number
 }
 
 interface VoiceSocket {
   readonly readyState: number
-  send(data: string): void
+  readonly bufferedAmount: number
+  binaryType?: BinaryType
+  send(data: string | BufferSource): void
   close(code?: number, reason?: string): void
   addEventListener(type: 'open', listener: (event: Event) => void): void
   addEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void
@@ -41,6 +61,30 @@ interface VoiceSocket {
   removeEventListener(type: 'close', listener: (event: CloseEvent) => void): void
 }
 
+export interface VoiceAudioSink {
+  /** Prepare browser playback from the same explicit gesture that starts capture. */
+  prepare(): Promise<void>
+  /** Consume one bounded PCM16 mono/24 kHz provider chunk. */
+  write(pcm24: Uint8Array): void
+  /** Drop queued playback when the exact voice lifecycle stops or fails. */
+  reset(): void
+}
+
+export interface VoiceAudioCapture {
+  /** Request permission and begin owned microphone capture. */
+  start(): Promise<void>
+  /** Stop every capture resource, optionally flushing the final bounded frame. */
+  stop(flush?: boolean): void
+}
+
+export interface VoiceAudioCaptureHandlers {
+  readonly onChunk: (pcm16: Uint8Array) => void
+  readonly onLimit: () => void
+  readonly onError: (error: Error) => void
+}
+
+export type VoiceAudioCaptureFactory = (handlers: VoiceAudioCaptureHandlers) => VoiceAudioCapture
+
 interface ActiveSocket {
   readonly socket: VoiceSocket
   readonly generation: number
@@ -51,6 +95,17 @@ interface ActiveSocket {
   readonly onClose: (event: CloseEvent) => void
 }
 
+interface ActiveCapture {
+  readonly capture: VoiceAudioCapture
+  readonly generation: number
+  readonly sessionId: string
+}
+
+interface ComposerBinding {
+  readonly sessionId: string
+  readonly identity: object
+}
+
 export interface VoiceClientControllerOptions {
   readonly route: string
   readonly location?: Pick<Location, 'href' | 'protocol'>
@@ -58,13 +113,19 @@ export interface VoiceClientControllerOptions {
   readonly now?: () => number
   readonly schedule?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>
   readonly cancelScheduled?: (timer: ReturnType<typeof setTimeout>) => void
+  readonly audioSink?: VoiceAudioSink
+  readonly captureFactory?: VoiceAudioCaptureFactory
 }
 
 const IDLE: VoiceClientSnapshot = { phase: 'idle' }
 const SOCKET_CONNECTING = 0
 const SOCKET_OPEN = 1
+// Browser clients may initiate WebSocket closure only with 1000 or an
+// application-private code in the 3000-4999 range. Keep failure teardown on
+// one stable private code; server-originated policy closes may still use 1008.
+const CLIENT_FAILURE_CLOSE_CODE = 4000
 
-/** Browser-side disclosure and setup coordinator. Microphone and audio remain absent. */
+/** Browser-side disclosure, bounded capture, and one-turn playback coordinator. */
 export class VoiceClientController {
   private snapshot: VoiceClientSnapshot = IDLE
   private readonly listeners = new Set<() => void>()
@@ -79,17 +140,25 @@ export class VoiceClientController {
   private consentTimer: ReturnType<typeof setTimeout> | undefined
   private generation = 0
   private disposed = false
+  private readonly audioSink: VoiceAudioSink
+  private readonly captureFactory: VoiceAudioCaptureFactory | undefined
+  private capture: ActiveCapture | undefined
+  private inputBytes = 0
+  private outputBytes = 0
+  private composerBinding: ComposerBinding | undefined
 
   constructor(private readonly options: VoiceClientControllerOptions) {
     this.location = options.location ?? window.location
     this.route = parseGuardedVoiceClientBoot({ v: CLIENT_BOOT_VERSION, route: options.route }).route
     if (this.location.protocol !== 'http:' && this.location.protocol !== 'https:') {
-      throw new TypeError('guarded voice requires an HTTP(S) page')
+      throw new TypeError('DSH Live Voice requires an HTTP(S) page')
     }
     this.socketFactory = options.socketFactory ?? (url => new WebSocket(url))
     this.now = options.now ?? Date.now
     this.schedule = options.schedule ?? ((callback, delayMs) => setTimeout(callback, delayMs))
     this.cancelScheduled = options.cancelScheduled ?? (timer => { clearTimeout(timer) })
+    this.audioSink = options.audioSink ?? { prepare: () => Promise.resolve(), write: () => {}, reset: () => {} }
+    this.captureFactory = options.captureFactory
   }
 
   /** Return the identity-stable view until one lifecycle fact changes. */
@@ -105,6 +174,7 @@ export class VoiceClientController {
   start(sessionId: string): void {
     if (this.disposed) return
     this.releaseActive(1000, 'replaced')
+    this.resetTurn()
     const generation = ++this.generation
     let socket: VoiceSocket
     try {
@@ -123,6 +193,7 @@ export class VoiceClientController {
       onClose: event => { this.closed(active, event) },
     }
     this.active = active
+    socket.binaryType = 'arraybuffer'
     socket.addEventListener('open', active.onOpen)
     socket.addEventListener('message', active.onMessage)
     socket.addEventListener('error', active.onError)
@@ -130,8 +201,132 @@ export class VoiceClientController {
     this.publish({ phase: 'connecting', sessionId })
   }
 
+  /** Append one bounded PCM16 mono/16 kHz chunk to this exact ready Session. */
+  appendPcm16(sessionId: string, chunk: Uint8Array): void {
+    const active = this.active
+    if (this.disposed
+      || this.snapshot.phase !== 'ready'
+      || this.snapshot.sessionId !== sessionId
+      || active?.sessionId !== sessionId) return
+    this.relayPcm16(active, chunk)
+  }
+
+  /** Start microphone capture only from the exact ready Session's user gesture. */
+  beginCapture(sessionId: string): void {
+    const active = this.active
+    if (this.disposed
+      || this.snapshot.phase !== 'ready'
+      || this.snapshot.sessionId !== sessionId
+      || active?.sessionId !== sessionId
+      || active.socket.readyState !== SOCKET_OPEN) return
+    if (this.captureFactory === undefined) {
+      this.failedSocket(active, new Error('browser microphone capture is unavailable'))
+      return
+    }
+
+    let record: ActiveCapture | undefined
+    let capture: VoiceAudioCapture
+    try {
+      capture = this.captureFactory({
+        onChunk: chunk => { if (record !== undefined) this.capturedPcm16(record, chunk) },
+        onLimit: () => { if (record !== undefined) this.captureLimit(record) },
+        onError: error => { if (record !== undefined) this.captureError(record, error) },
+      })
+    } catch (error) {
+      this.failedSocket(active, error)
+      return
+    }
+    record = { capture, generation: this.generation, sessionId }
+    this.capture = record
+    this.publish({ ...this.snapshot, phase: 'preparing-audio' })
+    // Snapshot subscribers run synchronously and may stop, dispose, or replace
+    // this lifecycle. Revalidate after publication so a cancelled gesture can
+    // never start playback or request microphone permission on its return path.
+    if (!this.isCaptureActive(active, record) || this.getSnapshot().phase !== 'preparing-audio') return
+    void this.prepareCapture(active, record)
+  }
+
+  /** Finish the explicit microphone turn and ask only the provider for an answer. */
+  finishCapture(sessionId: string): void {
+    const active = this.active
+    const record = this.capture
+    if (this.disposed
+      || this.snapshot.phase !== 'recording'
+      || this.snapshot.sessionId !== sessionId
+      || active?.sessionId !== sessionId
+      || record?.sessionId !== sessionId
+      || record.generation !== this.generation) return
+    try {
+      record.capture.stop(true)
+    } catch (error) {
+      this.failedSocket(active, error)
+      return
+    }
+    if (this.capture === record) this.capture = undefined
+    if (!this.isActive(active)) return
+    this.commitActiveTurn(active, ['recording'])
+  }
+
+  private relayPcm16(active: ActiveSocket, chunk: Uint8Array): void {
+    if (active.socket.readyState !== SOCKET_OPEN) return
+    if (chunk.byteLength === 0
+      || chunk.byteLength > MAX_INPUT_PCM16_CHUNK_BYTES
+      || chunk.byteLength % 2 !== 0
+      || this.inputBytes + chunk.byteLength > MAX_INPUT_PCM16_TURN_BYTES) {
+      this.failedSocket(active, new Error('PCM16 input exceeds the manual-turn boundary'))
+      return
+    }
+    if (active.socket.bufferedAmount + chunk.byteLength > MAX_VOICE_SOCKET_BUFFERED_BYTES) {
+      this.failedSocket(active, new Error('voice websocket backpressure limit reached'))
+      return
+    }
+    try {
+      const owned = new Uint8Array(chunk)
+      active.socket.send(owned)
+      this.inputBytes += owned.byteLength
+    } catch (error) {
+      this.failedSocket(active, error)
+    }
+  }
+
+  /** Commit the one manual turn. This operation can never submit the DSH composer. */
+  commitTurn(sessionId: string): void {
+    const active = this.active
+    if (this.disposed
+      || this.snapshot.phase !== 'ready'
+      || this.snapshot.sessionId !== sessionId
+      || active?.sessionId !== sessionId
+      || active.socket.readyState !== SOCKET_OPEN
+      || this.inputBytes === 0) return
+    this.commitActiveTurn(active, ['ready'])
+  }
+
+  private commitActiveTurn(active: ActiveSocket, allowedPhases: readonly VoiceClientPhase[]): void {
+    if (!this.isActive(active)
+      || !allowedPhases.includes(this.snapshot.phase)
+      || this.inputBytes === 0) return
+    try {
+      const commit = JSON.stringify({ v: WIRE_VERSION, type: 'turn.commit' })
+      if (active.socket.bufferedAmount + commit.length > MAX_VOICE_SOCKET_BUFFERED_BYTES) {
+        throw new Error('voice websocket backpressure limit reached')
+      }
+      active.socket.send(commit)
+    } catch (error) {
+      this.failedSocket(active, error)
+      return
+    }
+    this.publish({
+      ...this.snapshot,
+      phase: 'responding',
+      userTranscript: '',
+      assistantTranscript: '',
+      userTranscriptFinal: false,
+      assistantTranscriptFinal: false,
+    })
+  }
+
   /** Consume the hidden one-shot challenge after the visible acceptance gesture. */
-  accept(sessionId: string): void {
+  accept(sessionId: string, draftRevision?: number, composerIdentity?: object): void {
     if (this.disposed
       || this.snapshot.phase !== 'awaiting-consent'
       || this.snapshot.sessionId !== sessionId
@@ -157,7 +352,41 @@ export class VoiceClientController {
       this.failedSocket(active, error)
       return
     }
-    this.publish({ phase: 'authorizing', sessionId, disclosure })
+    this.composerBinding = composerIdentity === undefined
+      ? undefined
+      : { sessionId, identity: composerIdentity }
+    this.publish({
+      phase: 'authorizing',
+      sessionId,
+      disclosure,
+      ...(draftRevision !== undefined && Number.isSafeInteger(draftRevision) && draftRevision >= 0
+        ? { draftRevision }
+        : {}),
+    })
+  }
+
+  /** Whether this lifecycle still owns the exact per-Session composer action face accepted by the user. */
+  isComposerBindingCurrent(sessionId: string, composerIdentity: object): boolean {
+    const binding = this.composerBinding
+    return !this.disposed
+      && this.snapshot.sessionId === sessionId
+      && binding?.sessionId === sessionId
+      && binding.identity === composerIdentity
+  }
+
+  /** Atomically consume the exact composer binding before one explicit draft handoff. */
+  claimDraftHandoff(sessionId: string, composerIdentity: object, draftRevision: number): boolean {
+    const current = this.snapshot
+    if (!this.isComposerBindingCurrent(sessionId, composerIdentity)
+      || current.phase !== 'completed'
+      || current.turnStatus !== 'completed'
+      || current.userTranscriptFinal !== true
+      || current.userTranscript === undefined
+      || current.userTranscript.trim() === ''
+      || current.draftRevision !== draftRevision) return false
+
+    this.composerBinding = undefined
+    return true
   }
 
   /** Stop only the addressed setup; a different mounted Session cannot cancel it. */
@@ -173,6 +402,7 @@ export class VoiceClientController {
     }
     ++this.generation
     this.releaseActive(1000, 'stopped')
+    this.resetTurn()
     this.publish(IDLE)
   }
 
@@ -182,6 +412,7 @@ export class VoiceClientController {
     this.disposed = true
     ++this.generation
     this.releaseActive(1000, 'plugin disposed')
+    this.resetTurn()
     this.snapshot = IDLE
     this.listeners.clear()
   }
@@ -210,7 +441,24 @@ export class VoiceClientController {
   private received(active: ActiveSocket, message: MessageEvent<unknown>): void {
     if (!this.isActive(active)) return
     if (typeof message.data !== 'string') {
-      this.failedSocket(active, 'voice websocket sent a binary frame before audio was enabled')
+      if (this.snapshot.phase !== 'responding' || !(message.data instanceof ArrayBuffer)) {
+        this.failedSocket(active, 'voice websocket sent audio outside the active response')
+        return
+      }
+      const pcm24 = new Uint8Array(message.data)
+      if (pcm24.byteLength === 0
+        || pcm24.byteLength > MAX_OUTPUT_PCM16_CHUNK_BYTES
+        || pcm24.byteLength % 2 !== 0
+        || this.outputBytes + pcm24.byteLength > MAX_OUTPUT_PCM16_TURN_BYTES) {
+        this.failedSocket(active, 'voice websocket sent invalid PCM16 output')
+        return
+      }
+      try {
+        this.audioSink.write(new Uint8Array(pcm24))
+        this.outputBytes += pcm24.byteLength
+      } catch (error) {
+        this.failedSocket(active, error)
+      }
       return
     }
     try {
@@ -249,7 +497,38 @@ export class VoiceClientController {
           sessionId: active.sessionId,
           disclosure,
           model: event.model,
+          ...(this.snapshot.draftRevision === undefined
+            ? {}
+            : { draftRevision: this.snapshot.draftRevision }),
         })
+        return
+      }
+      if (event.type === 'transcript') {
+        if (this.snapshot.phase !== 'responding') {
+          throw new Error('voice transcript arrived outside the active response')
+        }
+        this.publish(event.role === 'user'
+          ? {
+              ...this.snapshot,
+              userTranscript: event.text,
+              userTranscriptFinal: event.final,
+            }
+          : {
+              ...this.snapshot,
+              assistantTranscript: event.text,
+              assistantTranscriptFinal: event.final,
+            })
+        return
+      }
+      if (event.type === 'turn.done') {
+        if (this.snapshot.phase !== 'responding') {
+          throw new Error('voice turn completed outside the active response')
+        }
+        this.publish({ ...this.snapshot, phase: 'completed', turnStatus: event.status })
+        // The completed snapshot is sufficient for an explicit draft handoff.
+        // Release the one-shot carrier immediately instead of retaining a
+        // provider-free connection slot until the panel is dismissed.
+        this.releaseRecord(active, true, 1000, 'turn complete')
         return
       }
       if (event.type === 'error') {
@@ -282,7 +561,69 @@ export class VoiceClientController {
   private fail(sessionId: string, error: unknown): void {
     if (this.disposed) return
     const message = error instanceof Error ? error.message : String(error)
+    this.resetTurn()
     this.publish({ phase: 'error', sessionId, error: message })
+  }
+
+  private resetTurn(): void {
+    const capture = this.capture
+    this.capture = undefined
+    if (capture !== undefined) {
+      try { capture.capture.stop(false) } catch {}
+    }
+    this.inputBytes = 0
+    this.outputBytes = 0
+    this.composerBinding = undefined
+    try { this.audioSink.reset() } catch {}
+  }
+
+  private async prepareCapture(active: ActiveSocket, record: ActiveCapture): Promise<void> {
+    try {
+      await Promise.all([this.audioSink.prepare(), record.capture.start()])
+    } catch (error) {
+      const stillActive = this.isCaptureActive(active, record)
+      try { record.capture.stop(false) } catch {}
+      if (this.capture === record) this.capture = undefined
+      if (stillActive) this.failedSocket(active, error)
+      return
+    }
+    if (!this.isCaptureActive(active, record) || this.snapshot.phase !== 'preparing-audio') {
+      try { record.capture.stop(false) } catch {}
+      if (this.capture === record) this.capture = undefined
+      return
+    }
+    this.publish({ ...this.snapshot, phase: 'recording' })
+  }
+
+  private capturedPcm16(record: ActiveCapture, chunk: Uint8Array): void {
+    const active = this.active
+    if (active === undefined
+      || !this.isCaptureActive(active, record)
+      || (this.snapshot.phase !== 'preparing-audio' && this.snapshot.phase !== 'recording')) return
+    this.relayPcm16(active, chunk)
+  }
+
+  private captureLimit(record: ActiveCapture): void {
+    const active = this.active
+    if (active === undefined
+      || !this.isCaptureActive(active, record)
+      || (this.snapshot.phase !== 'preparing-audio' && this.snapshot.phase !== 'recording')) return
+    this.capture = undefined
+    this.commitActiveTurn(active, ['preparing-audio', 'recording'])
+  }
+
+  private captureError(record: ActiveCapture, error: Error): void {
+    const active = this.active
+    if (active === undefined || !this.isCaptureActive(active, record)) return
+    this.capture = undefined
+    this.failedSocket(active, error)
+  }
+
+  private isCaptureActive(active: ActiveSocket, record: ActiveCapture): boolean {
+    return this.isActive(active)
+      && this.capture === record
+      && record.generation === this.generation
+      && record.sessionId === active.sessionId
   }
 
   private isActive(active: ActiveSocket): boolean {
@@ -297,7 +638,12 @@ export class VoiceClientController {
     else this.clearConsentTimer()
   }
 
-  private releaseRecord(active: ActiveSocket, close: boolean, code = 1008, reason = 'invalid voice state'): void {
+  private releaseRecord(
+    active: ActiveSocket,
+    close: boolean,
+    code = CLIENT_FAILURE_CLOSE_CODE,
+    reason = 'invalid voice state',
+  ): void {
     if (this.active !== active) return
     this.active = undefined
     this.challenge = undefined
@@ -327,7 +673,7 @@ export class VoiceClientController {
       try {
         listener()
       } catch (error) {
-        console.error('guarded voice snapshot listener failed:', error)
+        console.error('DSH Live Voice snapshot listener failed:', error)
       }
     }
   }
