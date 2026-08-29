@@ -86,8 +86,9 @@ The recorded maintainer run used the exact `dsh-v0.1.2-alpha.1` tag at
 `cd5ef8148158c3a752a658978873241fdf8e2bbc`, 218 official client artifacts with
 SHA-256 `90cd4d95eae7de5963bb2a7acb851ef72d8684d5345ef3728f572d6a86b076b5`,
 Windows `10.0.26200`, and a deterministic loopback provider. It proves only
-this source-built authenticated Web-profile composition. It does **not** widen
-the package peer range, establish broad alpha compatibility, use
+this source-built authenticated Web-profile composition. The preview.3 peer
+range admits this exact alpha in addition to the existing rc line; it does
+**not** establish later or broad alpha compatibility, use
 credential-backed Qwen, request a physical microphone or speaker, inspect an
 OS device indicator, exercise BFCache, or exercise packaged Desktop.
 
@@ -150,7 +151,10 @@ reconnect. The active case must also stop the synthetic track, close the two
 plugin-owned AudioContexts, clear plugin timers, close the original voice
 socket with `1000` / `stopped`, send no browser audio after teardown, preserve
 the original composer draft, and require fresh disclosure and challenges when
-reopening the original Session and then binding a second Session.
+reopening the original Session and then binding a second Session. The active
+case must also switch from a recording Session to a newly mounted Session
+without `pagehide`, stop the old capture, provider, and socket, emit no later
+audio frame, and leave the new Session's voice control idle and available.
 
 The recorded maintainer run used DSH v0.1.1-rc.2 at
 `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`, Chrome 151, Playwright 1.61.1,
@@ -159,3 +163,13 @@ It did **not** use credential-backed Qwen, a physical microphone or speaker, an
 OS device indicator, or packaged Desktop. It supplies exact official
 Web-profile evidence for that environment, but issue #7 remains open for an
 independent reproduction and no other release gate is inferred from it.
+
+The preview.3 compatibility run additionally used clean source-built DSH
+`dsh-v0.1.2-alpha.1` at
+`cd5ef8148158c3a752a658978873241fdf8e2bbc`, 218 official client artifacts with
+SHA-256 `31bcfade547ee8929bdf1a6513ccc16c3eaa86a51a5dd20d05f0e1758c233e15`,
+Chrome 151, Playwright 1.61.1, Node 24.19.0, Windows `10.0.26200`, synthetic Web
+Audio, and a deterministic loopback provider. It passed authenticated startup,
+BFCache, and active SPA Session-switch teardown. It does not prove a live or
+credential-backed provider, physical input/output, an OS device indicator,
+packaged Desktop, independent reproduction, or another DSH alpha revision.

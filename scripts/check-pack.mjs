@@ -6,12 +6,21 @@ import { runInNewContext } from 'node:vm'
 import { satisfies } from 'semver'
 
 const packageManifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+assert.equal(packageManifest.engines.node, '^22.19.0 || >=24.12.0')
+assert.equal(satisfies('22.22.2', packageManifest.engines.node), true)
+assert.equal(satisfies('24.11.1', packageManifest.engines.node), false)
+assert.equal(satisfies('24.19.0', packageManifest.engines.node), true)
 for (const [name, range] of Object.entries(packageManifest.peerDependencies)) {
   if (name === '@deepseek-ai/cordis') continue
   assert.equal(
     satisfies('0.1.2-alpha.1', range),
     true,
     `${name} peer range must admit the verified official DSH 0.1.2-alpha.1 baseline`,
+  )
+  assert.equal(
+    satisfies('0.1.2-alpha.2', range),
+    false,
+    `${name} peer range must not infer unverified later alpha builds`,
   )
 }
 
