@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/ci.yml/badge.svg)](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/ci.yml)
 
-[Preview release](https://github.com/Jstn-1g/dsh-live-voice/releases/tag/v0.3.0-preview.1)
+[Preview release](https://github.com/Jstn-1g/dsh-live-voice/releases/tag/v0.3.0-preview.2)
 · [Contributing](https://github.com/Jstn-1g/dsh-live-voice/blob/main/CONTRIBUTING.md)
 · [Testing guide](https://github.com/Jstn-1g/dsh-live-voice/blob/main/TESTING.md)
 · [Release gate](https://github.com/Jstn-1g/dsh-live-voice/issues/5)
@@ -18,11 +18,9 @@ proven.
 
 ## Current status
 
-Unless stated otherwise, this section describes the current `main` branch, not
-the published preview artifact. The immutable public `v0.3.0-preview.1` release
-is pinned to `fdeb7c8` and predates the official-Web BFCache and exact-alpha
-authentication merges. Bind every result to the exact revision that was
-tested.
+Unless stated otherwise, this section describes the immutable
+`v0.3.0-preview.2` artifact and its tagged source. Later `main` changes are not
+part of that release. Bind every result to the exact revision that was tested.
 
 ### Runtime support
 
@@ -144,7 +142,7 @@ The release tag includes prebuilt Host and browser artifacts, so installation
 does not require a source build:
 
 ```sh
-dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.1
+dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.2
 ```
 
 Restart the Web profile after installation. Existing v0.2.0 testers should

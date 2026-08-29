@@ -1,6 +1,6 @@
 {
   "name": "dsh-live-voice",
-  "version": "0.3.0-preview.1",
+  "version": "0.3.0-preview.2",
   "description": "Safety-first DeepSeek Harness live voice preview with exact-session consent and one bounded manual audio turn",
   "license": "MIT",
   "type": "module",

@@ -52,7 +52,8 @@ inconclusive.
 
 Download `Deepseek.Harness.Desktop_0.9.3_x64-setup.exe` from the exact
 [v0.9.3 release](https://github.com/dsh-tauri-desk/deepseek-harness-desktop/releases/tag/v0.9.3),
-then run this command from an explicit current-main DSH Live Voice checkout:
+then run this command from an exact DSH Live Voice source tag or commit that
+includes the preflight, and record that revision:
 
 ```powershell
 $env:DSH_LIVE_VOICE_DISPOSABLE_VM = 'I_ACKNOWLEDGE_THIS_IS_A_DISPOSABLE_VM'
@@ -95,7 +96,7 @@ context, and installer throughout that disposable-VM run, then bind the later
 Install the exact preview into the Web profile:
 
 ```sh
-dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.1
+dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.2
 ```
 
 Restart the Web profile, open a live Session, and inspect the composer tool row.
@@ -177,10 +178,12 @@ DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
   pnpm run smoke:harness:fake-qwen
 ```
 
-Revision boundary: `smoke:harness:alpha-auth`, `smoke:browser:bfcache`, and
-`smoke:harness:browser:bfcache` were added after the immutable
-`v0.3.0-preview.1` / `fdeb7c8` artifact. Run them from an explicit current-main
-commit and record that commit; do not attribute their result to preview.1.
+Revision boundary: the `v0.3.0-preview.2` source tag includes
+`smoke:harness:alpha-auth`, `smoke:browser:bfcache`, and
+`smoke:harness:browser:bfcache`; the `v0.3.0-preview.1` source does not. The
+installable tarball excludes maintainer scripts. Run them from an exact source
+tag or commit and record that revision; never attribute a result to an earlier
+artifact.
 
 For the exact source-built `dsh-v0.1.2-alpha.1` authenticated Web profile, run
 the alpha-specific smoke against a clean checkout with a verified official

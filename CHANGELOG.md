@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0-preview.2
 
 - Add a non-installing Windows packaged-shell preflight for the exact community
   Desktop v0.9.3 candidate. It refuses non-disposable state, the default DSH
@@ -29,6 +29,11 @@
   launch-token exchange, authenticated RPC, client bundle, and fake-provider
   voice turn. The package peer range remains unchanged; broader alpha support
   is not inferred from this one tagged source build.
+- Add a contributor guide, Code of Conduct, structured bug/proposal/tester
+  forms, pull-request safety checklist, runtime support table, and branded
+  social preview. Reports remain bound to their exact revision and environment;
+  traffic and deterministic evidence are not presented as users or broad
+  runtime support.
 
 ## 0.3.0-preview.1
 
