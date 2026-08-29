@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security report
+    url: https://github.com/Jstn-1g/dsh-live-voice/security/advisories/new
+    about: Report a suspected vulnerability without exposing secrets or private content.
+  - name: Release gates and current limitations
+    url: https://github.com/Jstn-1g/dsh-live-voice/issues/5
+    about: Review the evidence still required before a release candidate or stable release.
+  - name: Harness community launch
+    url: https://github.com/deepseek-ai/deepseek-harness/discussions/4958
+    about: Read the public ecosystem announcement and independent adoption notes.

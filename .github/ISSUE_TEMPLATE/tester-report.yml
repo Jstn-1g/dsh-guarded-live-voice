@@ -1,0 +1,82 @@
+name: Preview tester report
+description: Record a specific install, browser, provider, device, BFCache, or packaged-Desktop result.
+title: "[Test report]: "
+labels:
+  - testing
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Passing and failing results are both useful. A report is evidence only for the exact environment and path described here; maintainers independently review evidence before changing a release gate.
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Test scope
+      options:
+        - GitHub-tag installation and startup
+        - Deterministic or fake-provider path
+        - Browser lifecycle and teardown
+        - Credential-backed Qwen roundtrip
+        - Physical microphone capture
+        - Physical speaker playback
+        - BFCache navigation and restore
+        - Packaged Desktop restart or uninstall
+        - Other bounded path
+    validations:
+      required: true
+  - type: input
+    id: voice-version
+    attributes:
+      label: DSH Live Voice version
+      description: Use an exact release tag or commit SHA.
+      placeholder: v0.3.0-preview.1
+    validations:
+      required: true
+  - type: input
+    id: harness-version
+    attributes:
+      label: DeepSeek Harness version
+      placeholder: dsh-v0.1.1-rc.2 or an exact commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, architecture, profile, browser or Desktop version, install source, and relevant device model without personal identifiers.
+    validations:
+      required: true
+  - type: textarea
+    id: procedure
+    attributes:
+      label: Exact procedure
+      description: Provide reproducible steps and any non-secret configuration shape.
+    validations:
+      required: true
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Outcome
+      options:
+        - Passed
+        - Failed
+        - Partially passed
+        - Inconclusive
+    validations:
+      required: true
+  - type: textarea
+    id: observations
+    attributes:
+      label: Observations and sanitized evidence
+      description: Include bounded timings, visible states, or minimal errors. Do not attach audio or private content.
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Evidence boundaries
+      options:
+        - label: I did not include credentials, recordings, private transcripts, workspace content, personal data, or identifying logs.
+          required: true
+        - label: I understand this report does not prove other environments, close another gate, or make the preview stable or officially endorsed.
+          required: true

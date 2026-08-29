@@ -1,8 +1,15 @@
 # DSH Live Voice
 
+[![CI](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/ci.yml/badge.svg)](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/ci.yml)
+
+[Preview release](https://github.com/Jstn-1g/dsh-live-voice/releases/tag/v0.3.0-preview.1)
+· [Contributing](https://github.com/Jstn-1g/dsh-live-voice/blob/main/CONTRIBUTING.md)
+· [Testing guide](https://github.com/Jstn-1g/dsh-live-voice/blob/main/TESTING.md)
+· [Release gate](https://github.com/Jstn-1g/dsh-live-voice/issues/5)
+
 A safety-first live-voice add-on for DeepSeek Harness with an exact-session Host
 boundary, a lazy browser disclosure UI, and one bounded manual audio turn. The
-v0.3 preview branch includes explicit-gesture microphone capture and
+v0.3 preview includes explicit-gesture microphone capture and
 bounded playback; credentialed provider and packed Desktop behavior are not yet
 proven.
 
@@ -26,7 +33,7 @@ exact-session Host boundary:
   cleanup; and
 - bounded proposal parsing with no execution authority.
 
-This v0.3 preview branch adds a bounded manual-turn foundation behind that
+This v0.3 preview adds a bounded manual-turn foundation behind that
 same consumed-consent and authority lease:
 
 - an audio-mode Qwen handshake that requires the requested model, stable
@@ -58,7 +65,7 @@ same consumed-consent and authority lease:
 - ordered PCM16 mono/24 kHz Web Audio playback with five-second and 256-live-
   source ceilings, reset ownership, and fail-closed backpressure.
 
-The branch still does **not** support continuous conversation or barge-in, send
+The preview still does **not** support continuous conversation or barge-in, send
 DSH history/files/instructions, call tools, submit the composer, or write custom
 session events. Capture, resampling, framing, cleanup, playback ordering, and
 backpressure are deterministic-fake tested. Packed composition with the
@@ -109,9 +116,24 @@ This preview has deterministic and packed fake-provider coverage but still
 requires the live-provider and physical-device checks tracked in the release
 gate before a release candidate or stable release.
 
+## Help validate the preview
+
+Useful reports are welcome even when they uncover a failure. Use the structured
+[tester report](https://github.com/Jstn-1g/dsh-live-voice/issues/new?template=tester-report.yml)
+for install, browser, provider, physical-device, BFCache, or packaged-Desktop
+results. Follow the
+[testing guide](https://github.com/Jstn-1g/dsh-live-voice/blob/main/TESTING.md),
+then include the exact release or commit, DSH version, platform, browser,
+steps, and sanitized evidence. Never attach credentials, recordings, private
+transcripts, workspace content, or identifying logs.
+
+A passing report is evidence for only the environment and path it directly
+tested. It does not by itself close another release gate or make the preview a
+stable, marketplace-ready, or officially endorsed product.
+
 ## Development
 
-Requirements: Node.js 22.19+ and pnpm 11.7.
+Requirements: Node.js 22.19.x or Node.js 24+, and pnpm 11.7.
 
 ```sh
 pnpm install
@@ -121,6 +143,15 @@ pnpm check
 `pnpm check` runs strict Host and browser TypeScript checking, deterministic
 tests, Host and browser builds, package linting, browser-bundle materialization,
 and a dry-run package-content check.
+
+New contributors can browse the
+[`good first issue`](https://github.com/Jstn-1g/dsh-live-voice/labels/good%20first%20issue)
+and [`help wanted`](https://github.com/Jstn-1g/dsh-live-voice/labels/help%20wanted)
+queues. Read the
+[contribution guide](https://github.com/Jstn-1g/dsh-live-voice/blob/main/CONTRIBUTING.md)
+before opening a pull request; it explains the safety invariants, test
+expectations, and paths that do not require provider credentials or physical
+audio hardware.
 
 ## Development configuration
 
