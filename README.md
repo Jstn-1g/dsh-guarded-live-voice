@@ -73,9 +73,14 @@ session events. Capture, resampling, framing, cleanup, playback ordering, and
 backpressure are deterministic-fake tested. Packed composition with the
 official Harness is verified against a local fake Qwen server; no
 credential-backed audio roundtrip, physical-device audio, or packaged Desktop
-browser smoke is claimed. This is not a marketplace-ready voice product and is
-not “ChatGPT Live parity.” DSH Live Voice is the product name; the guarded
-consent and authority model remains its security architecture.
+browser smoke is claimed. A standalone controlled-Chromium fixture now verifies
+real BFCache save/restore for idle and synthetic active-audio paths, including
+resource teardown and stale client Session, consent, and composer-binding
+rejection. Exact official DSH Web-profile and packaged Desktop BFCache behavior
+remain unproven. This is not a
+marketplace-ready voice product and is not “ChatGPT Live parity.” DSH Live Voice
+is the product name; the guarded consent and authority model remains its
+security architecture.
 
 The disclosure flow is user-visible, but it is not cryptographic proof that a
 human accepted it. The one-shot challenge proves control of that local client

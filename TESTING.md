@@ -109,6 +109,26 @@ URL for a synthetic raw-unload check:
 pnpm run smoke:browser:unload
 ```
 
+The optional BFCache smoke prints idle, active, and away URLs for two real
+Chromium history save/restore receipts:
+
+```sh
+pnpm run smoke:browser:bfcache
+```
+
+In the same controlled Chromium tab, open the idle URL, navigate to the printed
+away URL, and use browser **Back**. Then open the active URL, press **Start**,
+**Accept**, and **Record**, wait for `recording` and at least one synthetic audio
+frame in the visible counter, navigate to the away URL, and use **Back** again.
+The process succeeds only when both original documents report
+`pagehide.persisted = true` and
+`pageshow.persisted = true`, release the exercised resources, reject stale
+authority after restoration, and complete a fresh disclosure-bound lifecycle.
+
+This fixture replaces `getUserMedia`, uses only loopback transport, and loads
+the built plugin client in a minimal slot harness. It does not prove a physical
+device, live provider, exact official DSH Web profile, or packaged Desktop path.
+
 See [docs/conformance.md](docs/conformance.md) for what each smoke proves and,
 just as importantly, what it does not prove.
 

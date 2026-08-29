@@ -65,18 +65,20 @@ Host and browser builds, package linting, browser-bundle materialization, and a
 dry-run package-content audit. Focused tests are useful while iterating, but the
 complete check is the pull-request baseline.
 
-Two optional smokes cover narrower integration paths:
+Three optional smokes cover narrower integration paths:
 
 ```sh
 pnpm run smoke:harness:fake-qwen
 pnpm run smoke:browser:unload
+pnpm run smoke:browser:bfcache
 ```
 
 The packed Harness smoke requires a compatible local DeepSeek Harness checkout
-through `DSH_HARNESS_ROOT`. The browser smoke uses a controlled synthetic audio
+through `DSH_HARNESS_ROOT`. The browser smokes use a controlled synthetic audio
 source. Read [TESTING.md](TESTING.md) and [docs/conformance.md](docs/conformance.md)
-before interpreting either result; neither proves a live provider, physical
-audio device, BFCache, or packaged Desktop path.
+before interpreting a result. The BFCache smoke proves only its standalone
+Chromium path; none of these smokes proves a live provider, physical audio
+device, exact official DSH-profile BFCache behavior, or packaged Desktop path.
 
 Most contributions do not need provider credentials, a microphone, a speaker,
 or a packaged Desktop build. The test suite uses deterministic fakes, and the
