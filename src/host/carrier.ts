@@ -115,3 +115,17 @@ export function rejectUpgrade(socket: Duplex, assessment: Extract<UpgradeAssessm
     + 'Content-Length: 0\r\n\r\n',
   )
 }
+
+/** Mirror Harness Connection's authenticated WebSocket rejection contract. */
+export function rejectConnectionUpgrade(socket: Duplex, status: 401 | 403): void {
+  const reason = status === 401 ? 'Unauthorized' : 'Forbidden'
+  const body = reason.toLowerCase()
+  socket.end([
+    `HTTP/1.1 ${String(status)} ${reason}`,
+    'Connection: close',
+    'Content-Type: text/plain; charset=utf-8',
+    `Content-Length: ${String(Buffer.byteLength(body))}`,
+    '',
+    body,
+  ].join('\r\n'))
+}

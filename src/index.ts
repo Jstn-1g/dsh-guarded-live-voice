@@ -2,11 +2,12 @@ import type { Context } from '@deepseek-ai/cordis'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import z from '@deepseek-ai/schemastery'
+import type { IncomingMessage } from 'node:http'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-workspace'
 import { AuthorityGuard } from './host/authority.js'
 import { guardedVoiceClientBootInjection } from './host/boot.js'
-import { assertTrustedHosts } from './host/carrier.js'
+import { assertTrustedHosts, rejectConnectionUpgrade } from './host/carrier.js'
 import { ConsentChallenges } from './host/consent.js'
 import { GuardedVoiceGateway } from './host/gateway.js'
 import { ManualTurnCoordinator } from './host/manual-turn.js'
@@ -116,7 +117,23 @@ export const Config: z<Config> = z.object({
   maxConnections: z.natural().min(1).max(64).default(8),
 })
 
-export const inject = ['credentials', 'sessions', 'workspaceRegistry', 'webServer']
+export const inject = ['credentials', 'sessions', 'workspaceRegistry', 'webServer', 'connection']
+
+interface HarnessConnectionGate {
+  readonly requestRejection?: (request: IncomingMessage) => unknown
+}
+
+function harnessConnectionRejection(ctx: Context, request: IncomingMessage): 401 | 403 | undefined {
+  const connection = (ctx as Context & { readonly connection?: HarnessConnectionGate }).connection
+  const gate = connection?.requestRejection
+  if (gate === undefined) return undefined
+  if (typeof gate !== 'function') {
+    throw new TypeError('DSH connection requestRejection must be a function')
+  }
+  const rejection = gate.call(connection, request)
+  if (rejection === undefined || rejection === 401 || rejection === 403) return rejection
+  throw new TypeError('DSH connection requestRejection returned an invalid status')
+}
 
 function resolvedConfig(config: Config = {}): Required<Omit<Config, 'dashscopeWorkspaceId'>> & Pick<Config, 'dashscopeWorkspaceId'> {
   return {
@@ -212,7 +229,14 @@ export function apply(ctx: Context, input?: Config): void {
   })
   ctx.effect(() => ctx.webServer.registerUpgrade({
     path: config.route,
-    handler: (request, socket, head) => { gateway.handleUpgrade(request, socket, head) },
+    handler: (request, socket, head) => {
+      const rejection = harnessConnectionRejection(ctx, request)
+      if (rejection !== undefined) {
+        rejectConnectionUpgrade(socket, rejection)
+        return
+      }
+      gateway.handleUpgrade(request, socket, head)
+    },
   }), `dsh-live-voice: ${config.route} upgrade`)
   ctx.effect(() => () => { gateway.close() }, 'dsh-live-voice: gateway cleanup')
   ctx.on('session/disposed', (session) => { gateway.stopSession(String(session.id)) })

@@ -12,8 +12,12 @@
   packaged Desktop validation remains open.
 - Prepare the production client dependency graph for the upstream
   `dsh-client-runtime` to `dsh-client-ui-renderer` migration while preserving
-  the current verified DSH release-candidate compatibility range. The upstream
-  alpha remains unclaimed until an exact packaged composition smoke is possible.
+  the current verified DSH release-candidate compatibility range. Adapt the
+  voice upgrade to Harness's optional authenticated connection gate and add an
+  exact source-built `dsh-v0.1.2-alpha.1` composition smoke covering its private
+  launch-token exchange, authenticated RPC, client bundle, and fake-provider
+  voice turn. The package peer range remains unchanged; broader alpha support
+  is not inferred from this one tagged source build.
 
 ## 0.3.0-preview.1
 

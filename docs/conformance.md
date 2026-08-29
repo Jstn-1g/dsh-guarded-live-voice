@@ -48,6 +48,31 @@ gateway protocol boundary. It does **not** exercise a browser microphone,
 browser playback/lifecycle behavior, Desktop packaging, or a live
 credentialed Qwen endpoint, and it does not satisfy those release gates.
 
+## Official DSH alpha authenticated composition smoke
+
+`pnpm run smoke:harness:alpha-auth` requires `DSH_HARNESS_ROOT` to name an
+exact, clean, source-built Harness `dsh-v0.1.2-alpha.1` checkout whose official
+Web client artifact receipt is present and valid. It packs the current plugin,
+installs it through the official CLI into a disposable shipped `web` profile,
+and verifies the alpha connection gate before exercising the authenticated
+root, revisioned client-plugin combo, workspace/session RPC, disclosure, and
+one deterministic fake-provider manual voice turn.
+
+A pass requires the unauthenticated voice WebSocket upgrade to return `401`,
+the private launch token to exchange for an HttpOnly, SameSite=Strict Harness
+cookie, and all later HTTP, RPC, and voice requests to use that authenticated
+session. The token and cookie are retained only in memory, are registered for
+redaction, and never enter the sanitized receipt.
+
+The recorded maintainer run used the exact `dsh-v0.1.2-alpha.1` tag at
+`cd5ef8148158c3a752a658978873241fdf8e2bbc`, 218 official client artifacts with
+SHA-256 `90cd4d95eae7de5963bb2a7acb851ef72d8684d5345ef3728f572d6a86b076b5`,
+Windows `10.0.26200`, and a deterministic loopback provider. It proves only
+this source-built authenticated Web-profile composition. It does **not** widen
+the package peer range, establish broad alpha compatibility, use
+credential-backed Qwen, request a physical microphone or speaker, inspect an
+OS device indicator, exercise BFCache, or exercise packaged Desktop.
+
 ## Controlled Chromium raw-unload smoke
 
 `pnpm run smoke:browser:unload` builds the current client bundle and starts a

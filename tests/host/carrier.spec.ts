@@ -1,6 +1,8 @@
 import type { IncomingHttpHeaders } from 'node:http'
+import type { Duplex } from 'node:stream'
 import { describe, expect, it } from 'vitest'
-import { assessUpgradeRequest, assertTrustedHosts } from '../../src/host/carrier.js'
+import { vi } from 'vitest'
+import { assessUpgradeRequest, assertTrustedHosts, rejectConnectionUpgrade } from '../../src/host/carrier.js'
 
 const baseHeaders = (): IncomingHttpHeaders => ({
   host: '127.0.0.1:31415',
@@ -59,5 +61,21 @@ describe('WebSocket carrier trust fence', () => {
     expect(() => assertTrustedHosts(['good.example/path'])).toThrow(/invalid trusted host/u)
     expect(() => assertTrustedHosts(['good.example?admin=true'])).toThrow(/invalid trusted host/u)
     expect(() => assertTrustedHosts(['localhost', '[::1]'])).not.toThrow()
+  })
+
+  it.each([
+    [401, 'Unauthorized', 'unauthorized'],
+    [403, 'Forbidden', 'forbidden'],
+  ] as const)('mirrors the Harness Connection %i upgrade rejection', (status, reason, body) => {
+    const end = vi.fn()
+    rejectConnectionUpgrade({ end } as unknown as Duplex, status)
+    expect(end).toHaveBeenCalledWith([
+      `HTTP/1.1 ${String(status)} ${reason}`,
+      'Connection: close',
+      'Content-Type: text/plain; charset=utf-8',
+      `Content-Length: ${String(Buffer.byteLength(body))}`,
+      '',
+      body,
+    ].join('\r\n'))
   })
 })

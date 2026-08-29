@@ -103,6 +103,22 @@ DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
   pnpm run smoke:harness:fake-qwen
 ```
 
+For the exact source-built `dsh-v0.1.2-alpha.1` authenticated Web profile, run
+the alpha-specific smoke against a clean checkout with a verified official
+client build receipt:
+
+```sh
+DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
+  pnpm run smoke:harness:alpha-auth
+```
+
+It requires a real unauthenticated `401`, privately exchanges the launch token
+for the Harness cookie, then exercises the advertised client combo,
+workspace/session RPC, and one fake-provider voice turn. Its sanitized receipt
+contains no token or cookie. This is exact-tag source-build evidence only; it
+does not widen the package peer range or prove credential-backed Qwen,
+physical audio, BFCache, packaged Desktop, or broad alpha compatibility.
+
 The optional controlled-browser smoke builds the client and prints a loopback
 URL for a synthetic raw-unload check:
 
