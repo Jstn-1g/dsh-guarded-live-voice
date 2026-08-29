@@ -151,10 +151,10 @@ jobs:
         shell: pwsh
         run: |
           $receipt = & node preview/scripts/preflight-windows-desktop.mjs --installer $env:INSTALLER_PATH
-          if ($LASTEXITCODE -ne 0) { throw 'Exact-tag Windows Desktop preflight refused installation' }
+          $preflightExit = $LASTEXITCODE
           $receipt | Out-File -LiteralPath (Join-Path $env:RECEIPT_DIR 'preflight.json') -Encoding utf8
           $parsed = $receipt | ConvertFrom-Json
-          if ($parsed.readyForDisposableInstall -ne $true) {
+          if ($preflightExit -ne 0 -or $parsed.readyForDisposableInstall -ne $true) {
             throw 'Exact-tag preflight did not authorize this disposable runner'
           }
 
