@@ -1,5 +1,7 @@
 # DSH Live Voice
 
+![DSH Live Voice: consent-bound voice for DSH](https://raw.githubusercontent.com/Jstn-1g/dsh-live-voice/main/assets/dsh-live-voice-social.png)
+
 [![CI](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/ci.yml/badge.svg)](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/ci.yml)
 
 [Preview release](https://github.com/Jstn-1g/dsh-live-voice/releases/tag/v0.3.0-preview.1)
