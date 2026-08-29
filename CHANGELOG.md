@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Prepare the production client dependency graph for the upstream
+  `dsh-client-runtime` to `dsh-client-ui-renderer` migration while preserving
+  the current verified DSH release-candidate compatibility range. The upstream
+  alpha remains unclaimed until an exact packaged composition smoke is possible.
+
 ## 0.3.0-preview.1
 
 - Rename the product and package from `dsh-guarded-live-voice` to
