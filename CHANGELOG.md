@@ -9,7 +9,9 @@
   151 receipt covers BFCache restoration, DSH stream reconnection, teardown,
   draft preservation, and fresh Session/consent binding. It remains
   fake-provider, synthetic-audio evidence pending independent reproduction;
-  packaged Desktop validation remains open.
+  packaged served-Web shell validation remains open. Document that the separate
+  Harness `file://` + IPC Desktop architecture needs a portable carrier before
+  it can be tested, and track that prerequisite in issue #20.
 - Prepare the production client dependency graph for the upstream
   `dsh-client-runtime` to `dsh-client-ui-renderer` migration while preserving
   the current verified DSH release-candidate compatibility range. Adapt the

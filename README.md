@@ -9,13 +9,33 @@
 · [Testing guide](https://github.com/Jstn-1g/dsh-live-voice/blob/main/TESTING.md)
 · [Release gate](https://github.com/Jstn-1g/dsh-live-voice/issues/5)
 
-A safety-first live-voice add-on for DeepSeek Harness with an exact-session Host
-boundary, a lazy browser disclosure UI, and one bounded manual audio turn. The
-v0.3 preview includes explicit-gesture microphone capture and
-bounded playback; credentialed provider and packed Desktop behavior are not yet
+A safety-first live-voice add-on for the served DeepSeek Harness Web profile
+and shells that embed that profile, with an exact-session Host boundary, a lazy
+browser disclosure UI, and one bounded manual audio turn. The v0.3 preview
+includes explicit-gesture microphone capture and bounded playback;
+credentialed-provider, physical-device, and packaged-shell behavior are not yet
 proven.
 
 ## Current status
+
+Unless stated otherwise, this section describes current `main` at `4eee616`.
+The immutable public `v0.3.0-preview.1` artifact is pinned to `fdeb7c8` and
+predates the official-Web BFCache and exact-alpha authentication merges. Bind
+every result to the exact revision that was tested.
+
+### Runtime support
+
+| Runtime | Preview status |
+| --- | --- |
+| Shipped DSH `web` profile on v0.1.1-rc.2 | Exact fake-provider composition and official Web-profile BFCache receipt passed; physical audio, live Qwen, and independent reproduction remain open. |
+| Exact source-built `dsh-v0.1.2-alpha.1` Web profile | Browser-session authentication and one fake-provider turn passed for that pinned tag only. The declared peer ranges remain unchanged and exclude this alpha prerelease; verified release-line support remains rc.2. |
+| Community packaged shell embedding the served Web profile over HTTP(S) | Structurally compatible candidate, not a pass. The exact Tauri v0.9.3 install/restart/uninstall run is tracked in [issue #9](https://github.com/Jstn-1g/dsh-live-voice/issues/9). |
+| Harness-documented packaged `file://` + Fetch-over-IPC model | Not supported by the current direct WebSocket carrier. A public transport seam or validated Remote redesign is tracked in [issue #20](https://github.com/Jstn-1g/dsh-live-voice/issues/20). |
+
+A packaged-shell result must name its exact carrier. A pass in a shell that
+loads `http://127.0.0.1:<port>` proves only that served-Web architecture; it
+does not prove a shell that loads the UI from `file://` and sends Fetch through
+IPC.
 
 The v0.2.0 pre-release, published under the former
 `dsh-guarded-live-voice` name, established the browser-side consent surface and
@@ -72,8 +92,8 @@ DSH history/files/instructions, call tools, submit the composer, or write custom
 session events. Capture, resampling, framing, cleanup, playback ordering, and
 backpressure are deterministic-fake tested. Packed composition with the
 official Harness is verified against a local fake Qwen server; no
-credential-backed audio roundtrip, physical-device audio, or packaged Desktop
-browser smoke is claimed. A standalone controlled-Chromium fixture now verifies
+credential-backed audio roundtrip, physical-device audio, or packaged-shell
+smoke is claimed. A standalone controlled-Chromium fixture now verifies
 real BFCache save/restore for idle and synthetic active-audio paths, including
 resource teardown and stale client Session, consent, and composer-binding
 rejection. A second opt-in smoke rebuilds an exact, clean Harness checkout with
@@ -82,8 +102,10 @@ official CLI into a disposable shipped `web` profile, and drives the real DSH
 UI. The recorded DSH v0.1.1-rc.2 / Chrome 151 run verified BFCache restoration,
 DSH event-stream reconnection, active teardown, draft preservation, and fresh
 consent and Session binding. It used synthetic audio and a fake loopback
-provider; independent reproduction and packaged Desktop BFCache behavior
-remain open. A separate authenticated composition smoke now verifies the exact,
+provider; independent reproduction and a packaged served-Web shell receipt
+remain open. The separate `file://` + IPC Desktop architecture needs the
+portable-carrier work in issue #20 before it can be tested. A separate
+authenticated composition smoke now verifies the exact,
 clean source-built DSH `dsh-v0.1.2-alpha.1` Web profile: an unauthenticated voice
 upgrade receives `401`, the private launch token is exchanged for the Harness
 cookie without entering the receipt, and the authenticated client, workspace,
@@ -139,8 +161,8 @@ gate before a release candidate or stable release.
 
 Useful reports are welcome even when they uncover a failure. Use the structured
 [tester report](https://github.com/Jstn-1g/dsh-live-voice/issues/new?template=tester-report.yml)
-for install, browser, provider, physical-device, BFCache, or packaged-Desktop
-results. Follow the
+for install, browser, provider, physical-device, BFCache, or exact packaged
+shell results. Follow the
 [testing guide](https://github.com/Jstn-1g/dsh-live-voice/blob/main/TESTING.md),
 then include the exact release or commit, DSH version, platform, browser,
 steps, and sanitized evidence. Never attach credentials, recordings, private
@@ -194,7 +216,8 @@ After accepted disclosure, the preview opens the allowlisted Qwen
 endpoint for one exact-session manual turn and resolves the credential only on
 the Host. A second explicit button starts browser capture; finishing it commits
 only that bounded provider turn. This path is fake-tested but still needs a
-packed Desktop smoke and credential-backed Qwen roundtrip.
+packaged served-Web shell receipt and credential-backed Qwen roundtrip. The
+separate `file://` + IPC Desktop carrier requires issue #20 first.
 
 Configure the credential through DSH's credential provider. Never put a secret
 value in `cordis.patch.yml`, browser storage, an issue, or a log.
