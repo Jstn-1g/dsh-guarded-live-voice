@@ -26,7 +26,7 @@ part of that release. Bind every result to the exact revision that was tested.
 
 | Runtime | Preview status |
 | --- | --- |
-| Shipped DSH `web` profile on v0.1.1-rc.2 | Exact fake-provider composition and official Web-profile BFCache receipt passed; physical audio, live Qwen, and independent reproduction remain open. |
+| Shipped DSH `web` profile on v0.1.1-rc.2 | Preview.3 packed fake-provider composition passed. Preview.2 recorded the official Web-profile BFCache receipt; that older receipt is not rebound to this artifact. Physical audio, live Qwen, and independent reproduction remain open. |
 | Exact source-built `dsh-v0.1.2-alpha.1` Web profile | Authenticated composition, official Web-profile BFCache, and an active SPA Session switch passed with synthetic audio and a fake provider. The peer range admits this exact alpha only; later alpha builds are not inferred. |
 | Community packaged shell embedding the served Web profile over HTTP(S) | Structurally compatible candidate, not a pass. The exact Tauri v0.9.3 install/restart/uninstall run is tracked in [issue #9](https://github.com/Jstn-1g/dsh-live-voice/issues/9). |
 | Harness-documented packaged `file://` + Fetch-over-IPC model | Not supported by the current direct WebSocket carrier. A public transport seam or validated Remote redesign is tracked in [issue #20](https://github.com/Jstn-1g/dsh-live-voice/issues/20). |
