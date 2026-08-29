@@ -1,17 +1,19 @@
 import { useLayoutEffect, type ReactNode } from 'react'
-import type { VoiceControlProps, VoicePanelProps } from './contract.js'
+import { sessionIdOf, type VoiceControlProps, type VoicePanelProps } from './contract.js'
 import { VoiceControl } from './VoiceControl.js'
 import { VoicePanel } from './VoicePanel.js'
 
 interface SessionSeatProps {
-  readonly sessionId: unknown
+  readonly sessionId?: unknown
   readonly mountVoiceSession: (sessionId: string) => () => void
 }
 
 /** Stop the exact lifecycle when this strict session-scoped seat unmounts. */
-function useVoiceSessionSeat({ sessionId, mountVoiceSession }: SessionSeatProps): void {
+function useVoiceSessionSeat(props: SessionSeatProps): void {
+  const { mountVoiceSession } = props
+  const sessionId = sessionIdOf(props)
   useLayoutEffect(
-    () => mountVoiceSession(String(sessionId)),
+    () => mountVoiceSession(sessionId),
     [mountVoiceSession, sessionId],
   )
 }

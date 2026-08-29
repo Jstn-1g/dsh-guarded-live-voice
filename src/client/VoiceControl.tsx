@@ -1,8 +1,10 @@
-import type { VoiceControlProps } from './contract.js'
+import { sessionIdOf, type VoiceControlProps } from './contract.js'
 import css from './voice.module.css'
 
 /** Compact DSH Live Voice control inside the composer tool row. */
-export function VoiceControl({ sessionId, useVoice, startVoice, stopVoice, t }: VoiceControlProps) {
+export function VoiceControl(props: VoiceControlProps) {
+  const { useVoice, startVoice, stopVoice, t } = props
+  const sessionId = sessionIdOf(props)
   const voice = useVoice(snapshot => snapshot)
   const here = voice.sessionId === String(sessionId)
   const occupiedElsewhere = voice.phase !== 'idle' && voice.phase !== 'error' && !here

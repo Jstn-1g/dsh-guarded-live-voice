@@ -22,5 +22,12 @@ export interface VoiceInjected {
     readonly beginVoiceCapture: (sessionId: string) => void;
     readonly finishVoiceCapture: (sessionId: string) => void;
 }
-export type VoiceControlProps = PropsRuntime<'conversation.input.left'> & InjectFace<VoiceInjected> & PropsLocale<typeof NS>;
-export type VoicePanelProps = PropsRuntime<'conversation.input.dock'> & InjectFace<VoiceInjected> & PropsLocale<typeof NS>;
+interface SessionScopedCompatibilityProps {
+    /** Compatibility view; strict Session slots supply this at runtime. */
+    readonly sessionId?: unknown;
+}
+/** Read the strict Session-slot identity without coupling to its current owner package. */
+export declare function sessionIdOf(props: SessionScopedCompatibilityProps): string;
+export type VoiceControlProps = PropsRuntime<'conversation.input.left'> & SessionScopedCompatibilityProps & InjectFace<VoiceInjected> & PropsLocale<typeof NS>;
+export type VoicePanelProps = PropsRuntime<'conversation.input.dock'> & SessionScopedCompatibilityProps & InjectFace<VoiceInjected> & PropsLocale<typeof NS>;
+export {};
