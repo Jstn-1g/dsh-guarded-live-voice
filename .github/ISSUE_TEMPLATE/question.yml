@@ -1,0 +1,70 @@
+name: Support question
+description: Ask an installation or configuration question without exposing private data.
+title: "[Question]: "
+labels:
+  - question
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for a bounded installation, configuration, or usage question that is not a reproducible bug report. Support answers do not establish compatibility, close a release gate, or imply official DeepSeek Harness endorsement.
+  - type: input
+    id: voice-version
+    attributes:
+      label: DSH Live Voice version
+      description: Use the exact release tag or commit SHA you installed.
+      placeholder: v0.3.0-preview.3
+    validations:
+      required: true
+  - type: input
+    id: harness-version
+    attributes:
+      label: DeepSeek Harness version
+      description: Use the exact release tag or commit SHA when possible.
+      placeholder: dsh-v0.1.2-alpha.1 or an exact commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: installation
+    attributes:
+      label: Installation source and profile
+      description: State the release, package, or commit source and the DSH profile where the plugin is installed. Include only non-sensitive configuration shape.
+      placeholder: GitHub release tag v0.3.0-preview.3; web profile; installed with the documented dsh plugin command
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, architecture, and browser or Desktop version without personal identifiers.
+      placeholder: Windows 11 x64; Chrome 151; served Web profile
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Sanitized question or observed behavior
+      description: Ask one bounded question and describe what you observed. Do not include private content.
+    validations:
+      required: true
+  - type: textarea
+    id: troubleshooting
+    attributes:
+      label: Troubleshooting already attempted
+      description: List the relevant documentation or safe checks you already tried.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Smallest non-sensitive reproduction
+      description: When applicable, provide minimal steps and sanitized evidence. Leave this blank when no reproduction applies.
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Privacy and evidence boundaries
+      options:
+        - label: I did not include credentials, launch tokens, cookies, recordings, transcripts, Workspace content, personal data, or identifying logs.
+          required: true
+        - label: I understand that a support answer does not establish compatibility, close a release gate, or imply official DeepSeek Harness endorsement.
+          required: true
