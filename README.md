@@ -9,6 +9,7 @@
 · [Testing guide](TESTING.md)
 · [No-secret tester task](https://github.com/Jstn-1g/dsh-live-voice/issues/19)
 · [Release gate](https://github.com/Jstn-1g/dsh-live-voice/issues/5)
+· [Compatibility receipt](docs/compatibility.md)
 
 A safety-first live-voice add-on for the served DeepSeek Harness Web profile
 and shells that embed that profile, with an exact-session Host boundary, a lazy
