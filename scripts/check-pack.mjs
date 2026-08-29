@@ -3,6 +3,17 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { runInNewContext } from 'node:vm'
+import { satisfies } from 'semver'
+
+const packageManifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+for (const [name, range] of Object.entries(packageManifest.peerDependencies)) {
+  if (name === '@deepseek-ai/cordis') continue
+  assert.equal(
+    satisfies('0.1.2-alpha.1', range),
+    true,
+    `${name} peer range must admit the verified official DSH 0.1.2-alpha.1 baseline`,
+  )
+}
 
 const hostExports = await import(new URL('../lib/index.js', import.meta.url).href)
 for (const internalName of [
@@ -65,10 +76,15 @@ assert.equal(styles.length, 0, 'client wrapper must have no style side effect be
 assert.equal(registration?.id, 'dsh-live-voice', 'client wrapper id must equal the package name')
 assert.equal(typeof registration?.factory, 'function', 'client wrapper must register one factory')
 const moduleRequests = []
+const clientModules = new Map([
+  ['react', { useLayoutEffect: () => {} }],
+  ['react/jsx-runtime', { jsx: () => null, jsxs: () => null }],
+])
 const loadFace = () => registration.factory((specifier) => {
   moduleRequests.push(specifier)
-  assert.equal(specifier, 'react/jsx-runtime', `unexpected client module-table request: ${specifier}`)
-  return { jsx: () => null, jsxs: () => null }
+  const dependency = clientModules.get(specifier)
+  assert.ok(dependency, `unexpected client module-table request: ${specifier}`)
+  return dependency
 })
 assert.deepEqual(Object.keys(loadFace()).sort(), ['apply', 'inject'])
 assert.equal(styles.length, 1, 'materialization must inject one tagged stylesheet')
@@ -77,7 +93,7 @@ assert.equal(styles[0].dataset.pluginCss, 'dsh-live-voice/voice.module.css')
 assert.ok(styles[0].textContent.length > 0, 'injected stylesheet must not be empty')
 assert.deepEqual(Object.keys(loadFace()).sort(), ['apply', 'inject'])
 assert.equal(styles.length, 1, 're-materialization must deduplicate the tagged stylesheet')
-assert.deepEqual([...new Set(moduleRequests)], ['react/jsx-runtime'])
+assert.deepEqual([...new Set(moduleRequests)].sort(), [...clientModules.keys()].sort())
 assert.deepEqual(socketConstruction, [], 'materialization must not touch the voice transport')
 
 const executable = process.platform === 'win32' ? (process.env.ComSpec ?? 'cmd.exe') : 'npm'

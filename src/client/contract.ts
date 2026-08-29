@@ -6,6 +6,8 @@ export interface VoiceInjected {
   readonly hooks: { readonly voice: HostObservable<VoiceClientSnapshot> }
   /** Read the current lifecycle again at an explicit handoff gesture. */
   readonly getVoiceSnapshot: () => VoiceClientSnapshot
+  /** Retain one rendered exact-Session seat until its React unmount. */
+  readonly mountVoiceSession: (sessionId: string) => () => void
   readonly startVoice: (sessionId: string) => void
   /** Capture the stable, opaque composer action identity at consent. */
   readonly acceptDisclosure: (sessionId: string, draftRevision: number, composerIdentity: object) => void

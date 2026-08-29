@@ -1,3 +1,4 @@
+import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { AuthorityGuard } from '../../src/host/authority.js'
 import { ConsentChallenges } from '../../src/host/consent.js'
@@ -5,6 +6,22 @@ import type { AuthorizeProvider } from '../../src/host/provider.js'
 import { VoiceSessionManager } from '../../src/host/session-manager.js'
 
 const TOKEN = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+
+interface RealSession {
+  readonly id: string
+  readonly header: { readonly parentSession?: string }
+}
+
+interface RealSessionStore {
+  prepare(id: string): RealSession
+  enter(session: RealSession): () => void
+  announce(session: RealSession): void
+  fork(parent: RealSession, cwd: string | undefined, id: string): RealSession
+  get(id: string): RealSession | undefined
+}
+
+/** Keep the host-only runtime import opaque to the client declaration program. */
+const SESSION_RUNTIME_SPECIFIER = ['@deepseek-ai', 'dsh-session'].join('/')
 
 function fixture(authorize: AuthorizeProvider = vi.fn(async () => ({ provider: 'qwen' as const, model: 'qwen-test' }))) {
   const session = { id: 's1' }
@@ -67,6 +84,54 @@ describe('VoiceSessionManager', () => {
     expect(manager.size).toBe(0)
     expect(consents.size).toBe(0)
     expect(manager.stop('missing')).toBe(false)
+  })
+
+  it('keeps a forked child authorized when its parent session is disposed', async () => {
+    const sessionModule = await import(/* @vite-ignore */ SESSION_RUNTIME_SPECIFIER) as Record<string, unknown>
+    const SessionStore = sessionModule.default
+    const SessionId = sessionModule.SessionId as (value: string) => string
+    const ctx = new Context()
+    const install = ctx.plugin as unknown as (
+      plugin: unknown,
+    ) => { await(): Promise<void> }
+    await install.call(ctx, SessionStore).await()
+    const sessions = (ctx as unknown as { readonly sessions: RealSessionStore }).sessions
+    const parent = sessions.prepare(SessionId('parent'))
+    const detachParent = sessions.enter(parent)
+    sessions.announce(parent)
+    const child = sessions.fork(parent, undefined, SessionId('child'))
+    const workspaces = [{ id: 'w1', sessionIds: ['parent', 'child'] }]
+    const tokens = [TOKEN, 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb']
+    const manager = new VoiceSessionManager(
+      new AuthorityGuard(
+        { get: id => sessions.get(SessionId(id)) },
+        { list: () => workspaces },
+      ),
+      new ConsentChallenges({ token: () => tokens.shift() ?? TOKEN }),
+      vi.fn(async () => ({ provider: 'qwen' as const, model: 'qwen-test' })),
+    )
+    ;(ctx as unknown as {
+      on(name: 'session/disposed', listener: (session: RealSession) => void): void
+    }).on('session/disposed', session => { manager.stopSession(String(session.id)) })
+
+    const parentBegin = manager.begin('parent-connection', 'parent')
+    const childBegin = manager.begin('child-connection', 'child')
+    await manager.acceptConsent('parent-connection', parentBegin.challenge)
+    await manager.acceptConsent('child-connection', childBegin.challenge)
+
+    expect(parent).not.toBe(child)
+    expect(child.header.parentSession).toBe(parent.id)
+    expect(() => sessions.fork(parent, undefined, parent.id)).toThrow(/already exists/u)
+    detachParent()
+
+    expect(sessions.get(parent.id)).toBeUndefined()
+    expect(sessions.get(child.id)).toBe(child)
+    expect(manager.size).toBe(1)
+    expect(manager.revalidate('child-connection')).toEqual({
+      binding: { sessionId: 'child', workspaceId: 'w1' },
+      provider: { provider: 'qwen', model: 'qwen-test' },
+    })
+    expect(manager.stopSession('child')).toEqual(['child-connection'])
   })
 
   it('cannot resurrect a connection stopped during provider authorization', async () => {

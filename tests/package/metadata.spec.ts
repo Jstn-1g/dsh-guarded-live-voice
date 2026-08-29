@@ -29,7 +29,7 @@ describe('preview package metadata', () => {
     expect(manifest.dsh?.client?.external).toBeUndefined()
   })
 
-  it('uses the renderer owner without claiming an unverified alpha package graph', async () => {
+  it('uses the renderer owner and admits the source-verified alpha package graph', async () => {
     const manifest = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8')) as {
       dsh?: { client?: { inject?: string[] } }
       peerDependencies?: Record<string, string>
@@ -37,12 +37,12 @@ describe('preview package metadata', () => {
     const peers = manifest.peerDependencies ?? {}
     expect(manifest.dsh?.client?.inject).not.toContain('@deepseek-ai/dsh-client-runtime')
     expect(peers).not.toHaveProperty('@deepseek-ai/dsh-client-runtime')
-    expect(peers['@deepseek-ai/dsh-client-ui-renderer']).toBe('^0.1.1-rc.1')
+    expect(peers['@deepseek-ai/dsh-client-ui-renderer']).toBe('^0.1.1-rc.1 || ^0.1.2-alpha.1')
     for (const [name, range] of Object.entries(peers)) {
       if (name.startsWith('@deepseek-ai/dsh-')) {
-        expect(range, name).toBe('^0.1.1-rc.1')
+        expect(range, name).toBe('^0.1.1-rc.1 || ^0.1.2-alpha.1')
         expect(satisfies('0.1.1-rc.2', range), `${name} accepts current rc`).toBe(true)
-        expect(satisfies('0.1.2-alpha.1', range), `${name} rejects unverified alpha`).toBe(false)
+        expect(satisfies('0.1.2-alpha.1', range), `${name} accepts verified alpha`).toBe(true)
       }
     }
   })

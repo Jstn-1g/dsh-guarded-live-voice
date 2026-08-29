@@ -89,11 +89,19 @@ export declare class VoiceClientController {
     private inputBytes;
     private outputBytes;
     private composerBinding;
+    private readonly sessionMounts;
+    private readonly pendingSessionStops;
     constructor(options: VoiceClientControllerOptions);
     /** Return the identity-stable view until one lifecycle fact changes. */
     getSnapshot: () => VoiceClientSnapshot;
     /** Subscribe to browser-visible lifecycle changes. */
     subscribe: (listener: () => void) => (() => void);
+    /**
+     * Retain one rendered seat for an exact Session. The last seat leaving is
+     * the SPA-navigation boundary: no hidden socket, capture, playback, or
+     * transcript may survive after that Session's controls disappear.
+     */
+    mountSession: (sessionId: string) => (() => void);
     /** Begin exact-session setup; only the later accept call can authorize the provider. */
     start(sessionId: string): void;
     /** Append one bounded PCM16 mono/16 kHz chunk to this exact ready Session. */
