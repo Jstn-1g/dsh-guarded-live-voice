@@ -26,11 +26,16 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { WebSocket, WebSocketServer } from 'ws'
 
 const runBrowserBfcache = process.env.DSH_VOICE_SMOKE_BROWSER_BFCACHE === '1'
-const PROFILE = runBrowserBfcache ? 'web' : 'dsh-live-voice-fake-qwen-smoke'
+const runAlphaAuth = process.env.DSH_VOICE_SMOKE_ALPHA_AUTH === '1'
+const runOfficialSource = runBrowserBfcache || runAlphaAuth
+const PROFILE = runOfficialSource ? 'web' : 'dsh-live-voice-fake-qwen-smoke'
 const PLUGIN_NAME = 'dsh-live-voice'
 const ROUTE = '/guarded-voice'
 const MODEL = 'qwen-audio-3.0-realtime-plus'
 const WORKSPACE_SLUG = 'voice-smoke'
+const EXPECTED_ALPHA_COMMIT = 'cd5ef8148158c3a752a658978873241fdf8e2bbc'
+const EXPECTED_ALPHA_TAG = 'dsh-v0.1.2-alpha.1'
+const EXPECTED_ALPHA_VERSION = '0.1.2-alpha.1'
 const FAKE_CREDENTIAL = 'deterministic-fake-qwen-token'
 const EXPECTED_AUDIO = Buffer.from([1, 0, 2, 0])
 const EXPECTED_USER_TRANSCRIPT = 'deterministic user transcript'
@@ -63,6 +68,36 @@ const activeChildren = new Set()
 let gatewaySocket
 let fakeProvider
 let temporaryRoot
+const sensitiveValues = new Set([
+  FAKE_CREDENTIAL,
+  EXPECTED_USER_TRANSCRIPT,
+  EXPECTED_ASSISTANT_TRANSCRIPT,
+])
+
+function rememberSensitive(value) {
+  if (typeof value === 'string' && value !== '') sensitiveValues.add(value)
+}
+
+function redactSensitive(value) {
+  let redacted = String(value)
+    .replace(/([?&]token=)[A-Za-z0-9._~-]+/gu, '$1<redacted>')
+    .replace(/\b(?:set-cookie|cookie)\s*:\s*[^\r\n]+/giu, 'cookie: <redacted>')
+    .replace(/\b(?:https?|wss?):\/\/127\.0\.0\.1:\d+[^\s)]*/gu, '<loopback-url>')
+  for (const secret of sensitiveValues) redacted = redacted.replaceAll(secret, '<redacted>')
+  return redacted
+}
+
+function advertisedPluginClientUrl(root, baseUrl) {
+  const paths = [...root.matchAll(/\b(?:href|src)="([^"]*\/plugins\/\?\?[^"]+)"/gu)]
+    .map(match => match[1]?.replaceAll('&amp;', '&'))
+    .filter(path => path?.includes(`${PLUGIN_NAME}/client.js`) === true)
+  assert.equal(paths.length, 1, 'official Web index did not advertise exactly one voice client bundle')
+  const url = new URL(paths[0], baseUrl)
+  assert.equal(url.origin, new URL(baseUrl).origin, 'official Web index advertised a cross-origin voice client bundle')
+  assert.equal(url.username, '', 'official Web index advertised a credentialed voice client bundle URL')
+  assert.equal(url.password, '', 'official Web index advertised a credentialed voice client bundle URL')
+  return url
+}
 
 function controlledEnvironment(overrides = {}) {
   const safe = {}
@@ -121,7 +156,7 @@ async function runChild(command, args, { cwd, env, label, timeoutMs = PROCESS_TI
     const result = await withTimeout(completion, timeoutMs, label)
     if (result.code !== 0) {
       const diagnostic = [readStdout(), readStderr()].filter(Boolean).join('\n').trim()
-      throw new Error(`${label} exited unsuccessfully (${result.code ?? result.signal ?? 'unknown'})${diagnostic === '' ? '' : `\n${diagnostic}`}`)
+      throw new Error(`${label} exited unsuccessfully (${result.code ?? result.signal ?? 'unknown'})${diagnostic === '' ? '' : `\n${redactSensitive(diagnostic)}`}`)
     }
     return readStdout().trim()
   } catch (error) {
@@ -349,24 +384,33 @@ function createFakeProvider() {
   }
 }
 
-async function rpc(baseUrl, method, payload, sequence) {
-  const response = await withTimeout(fetch(`${baseUrl}/api/${method}`, {
+async function rpc(baseUrl, method, payload, sequence, authentication = {}) {
+  const endpoint = authentication.alpha === true ? method.replaceAll('.', '/') : method
+  const rpcId = `dsh-live-voice-smoke-${String(sequence)}`
+  const response = await withTimeout(fetch(`${baseUrl}/api/${endpoint}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(authentication.cookie === undefined ? {} : { cookie: authentication.cookie }),
+    },
     body: JSON.stringify({
       type: 'client-request',
-      rpcId: `dsh-live-voice-smoke-${String(sequence)}`,
-      method,
-      payload,
+      rpcId,
+      method: endpoint,
+      payload: authentication.alpha === true ? { args: { request: payload } } : payload,
     }),
-  }), TURN_TIMEOUT_MS, `${method} RPC`)
-  assert.equal(response.ok, true, `${method} RPC returned HTTP ${String(response.status)}`)
+  }), TURN_TIMEOUT_MS, `${endpoint} RPC`)
+  assert.equal(response.ok, true, `${endpoint} RPC returned HTTP ${String(response.status)}`)
   const body = await response.json()
-  assert.equal(body.result?.ok, true, `${method} RPC failed`)
+  if (authentication.alpha === true) {
+    assert.equal(body.type, 'server-response', `${endpoint} RPC response type differed`)
+    assert.equal(body.rpcId, rpcId, `${endpoint} RPC correlation differed`)
+  }
+  assert.equal(body.result?.ok, true, `${endpoint} RPC failed`)
   return body.result.value
 }
 
-async function driveGateway(baseUrl, sessionId, workspaceId) {
+async function driveGateway(baseUrl, sessionId, workspaceId, cookie) {
   const url = new URL(ROUTE, baseUrl)
   url.protocol = 'ws:'
   const controls = []
@@ -385,7 +429,10 @@ async function driveGateway(baseUrl, sessionId, workspaceId) {
       if (error === undefined) resolveCompletion()
       else rejectCompletion(error)
     }
-    gatewaySocket = new WebSocket(url, { origin: baseUrl })
+    gatewaySocket = new WebSocket(url, {
+      origin: baseUrl,
+      ...(cookie === undefined ? {} : { headers: { cookie } }),
+    })
     gatewaySocket.on('open', () => {
       gatewaySocket.send(JSON.stringify({ v: 1, type: 'bind', sessionId }))
     })
@@ -1003,6 +1050,74 @@ async function driveOfficialBrowserBfcache(baseUrl, sessionId, workspaceId) {
   }
 }
 
+async function rejectedVoiceUpgradeStatus(baseUrl) {
+  const url = new URL(ROUTE, baseUrl)
+  url.protocol = 'ws:'
+  const status = new Promise((resolveStatus, rejectStatus) => {
+    const socket = new WebSocket(url, { origin: baseUrl })
+    let settled = false
+    const finish = (error, value) => {
+      if (settled) return
+      settled = true
+      if (error === undefined) resolveStatus(value)
+      else rejectStatus(error)
+    }
+    socket.once('unexpected-response', (_request, response) => {
+      const statusCode = response.statusCode
+      response.resume()
+      socket.terminate()
+      finish(undefined, statusCode)
+    })
+    socket.once('open', () => {
+      socket.terminate()
+      finish(new Error('unauthenticated voice WebSocket unexpectedly opened'))
+    })
+    socket.once('error', error => finish(error))
+    socket.once('close', () => finish(new Error('unauthenticated voice WebSocket closed without a response status')))
+  })
+  return withTimeout(status, TURN_TIMEOUT_MS, 'unauthenticated voice WebSocket rejection')
+}
+
+async function authenticateAlphaHarness(harness) {
+  assert.ok(harness.launchUrl !== undefined, 'alpha auth smoke requires a tokenized Harness launch URL')
+  const launch = new URL(harness.launchUrl)
+  const launchToken = launch.searchParams.get('token')
+  assert.ok(launchToken !== null && launchToken !== '')
+  rememberSensitive(launchToken)
+
+  const unauthenticatedVoiceUpgradeStatus = await rejectedVoiceUpgradeStatus(harness.baseUrl)
+  assert.equal(unauthenticatedVoiceUpgradeStatus, 401)
+  assert.equal(fakeProvider.acceptedConnections, 0)
+
+  const exchange = await withTimeout(fetch(harness.launchUrl, { redirect: 'manual' }), TURN_TIMEOUT_MS, 'launch-token exchange')
+  const location = exchange.headers.get('location')
+  const setCookie = exchange.headers.get('set-cookie')
+  const exchangeBody = await exchange.text()
+  assert.equal(exchange.status, 303)
+  assert.equal(location, '/')
+  assert.ok(setCookie !== null)
+  rememberSensitive(setCookie)
+  const cookie = setCookie.split(';', 1)[0]
+  rememberSensitive(cookie)
+  assert.match(setCookie, /(?:^|;)\s*HttpOnly(?:;|$)/iu)
+  assert.match(setCookie, /(?:^|;)\s*SameSite=Strict(?:;|$)/iu)
+  assert.equal(
+    /^[^=;\s]+=[A-Za-z0-9._~-]+$/u.test(cookie),
+    true,
+    'issued browser cookie has an invalid wire format',
+  )
+  assert.equal(location?.includes(launchToken), false)
+  assert.equal(exchangeBody.includes(launchToken), false)
+  assert.equal(exchangeBody.includes(cookie), false)
+  return {
+    alpha: true,
+    cookie,
+    cookieIssued: true,
+    launchTokenExchanged: true,
+    unauthenticatedVoiceUpgradeStatus,
+  }
+}
+
 async function startHarness(args, environment) {
   const child = spawn(process.execPath, args, {
     cwd: temporaryRoot,
@@ -1018,8 +1133,15 @@ async function startHarness(args, environment) {
     rejectReady = rejectReadiness
   })
   const readStdout = boundedCapture(child.stdout, output => {
-    const match = /http:\/\/127\.0\.0\.1:\d+/u.exec(output)
-    if (match !== null) resolveReady(match[0])
+    const match = /http:\/\/127\.0\.0\.1:\d+(?:\/\?token=[A-Za-z0-9._~-]+)?/u.exec(output)
+    if (match !== null) {
+      const launchUrl = match[0]
+      const parsed = new URL(launchUrl)
+      resolveReady({
+        baseUrl: parsed.origin,
+        launchUrl: parsed.searchParams.has('token') ? launchUrl : undefined,
+      })
+    }
   })
   const readStderr = boundedCapture(child.stderr)
   child.once('error', rejectReady)
@@ -1027,12 +1149,12 @@ async function startHarness(args, environment) {
     rejectReady(new Error(`Harness exited before readiness (${code ?? signal ?? 'unknown'})`))
   })
   try {
-    const baseUrl = await withTimeout(ready, READY_TIMEOUT_MS, 'Harness readiness')
-    return { child, baseUrl }
+    const endpoint = await withTimeout(ready, READY_TIMEOUT_MS, 'Harness readiness')
+    return { child, ...endpoint }
   } catch (error) {
     await stopChild(child)
     activeChildren.delete(child)
-    const diagnostic = [readStdout(), readStderr()].filter(Boolean).join('\n').trim()
+    const diagnostic = redactSensitive([readStdout(), readStderr()].filter(Boolean).join('\n').trim())
     if (diagnostic === '') throw error
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(`${message}\n${diagnostic}`, { cause: error })
@@ -1046,6 +1168,7 @@ async function main() {
   const realWsEntry = createRequire(import.meta.url).resolve('ws')
 
   temporaryRoot = await mkdtemp(join(tmpdir(), 'dsh-voice-fake-qwen-smoke-'))
+  rememberSensitive(temporaryRoot)
   const packDir = join(temporaryRoot, 'pack')
   const dshHome = join(temporaryRoot, '.dsh')
   const workspaceDir = join(temporaryRoot, 'workspace')
@@ -1070,6 +1193,7 @@ async function main() {
   })
   let dshClientArtifacts
   let dshCommit
+  let dshTag
   let dshVersion
   let dshWebIndexSha256
   let dshWorktreeDirty
@@ -1185,6 +1309,73 @@ async function main() {
       label: 'plugin worktree identity',
     })) !== ''
   }
+  if (runAlphaAuth) {
+    dshVersion = JSON.parse(await readFile(join(harnessRoot, 'package.json'), 'utf8')).version
+    dshCommit = await runChild('git', ['rev-parse', 'HEAD'], {
+      cwd: harnessRoot,
+      env: baseEnvironment,
+      label: 'Harness git identity',
+    })
+    dshTag = await runChild('git', ['describe', '--tags', '--exact-match', 'HEAD'], {
+      cwd: harnessRoot,
+      env: baseEnvironment,
+      label: 'Harness exact tag identity',
+    })
+    assert.equal(dshVersion, EXPECTED_ALPHA_VERSION, 'alpha auth smoke requires the exact Harness version')
+    assert.equal(dshCommit, EXPECTED_ALPHA_COMMIT, 'alpha auth smoke requires the exact Harness commit')
+    assert.equal(dshTag, EXPECTED_ALPHA_TAG, 'alpha auth smoke requires the exact Harness tag')
+    dshWorktreeDirty = (await runChild('git', ['status', '--porcelain'], {
+      cwd: harnessRoot,
+      env: baseEnvironment,
+      label: 'Harness worktree identity',
+    })) !== ''
+    assert.equal(dshWorktreeDirty, false, 'official alpha auth smoke requires a clean Harness source tree')
+    const buildRecordModuleUrl = pathToFileURL(join(
+      harnessRoot,
+      'scripts',
+      'client-build-environment.ts',
+    )).href
+    const verifyBuildRecord = [
+      `import { officialClientBuildEnvironment, readClientBuildRecord } from ${JSON.stringify(buildRecordModuleUrl)}`,
+      `const root = ${JSON.stringify(harnessRoot)}`,
+      'const record = readClientBuildRecord(root, officialClientBuildEnvironment(root))',
+      'process.stdout.write(JSON.stringify(record))',
+    ].join(';')
+    const buildRecord = JSON.parse(await runChild(process.execPath, [
+      '--import',
+      tsxImport,
+      '--input-type=module',
+      '--eval',
+      verifyBuildRecord,
+    ], {
+      cwd: harnessRoot,
+      env: baseEnvironment,
+      label: 'exact official Harness alpha client build verification',
+    }))
+    assert.deepEqual(buildRecord.environment, {
+      DSH_CLIENT_BUILD_PROFILE: 'official',
+      DSH_CLIENT_COMMIT_HASH: dshCommit.slice(0, 7).toLowerCase(),
+      DSH_CLIENT_TITLE: 'DeepSeek Harness',
+      DSH_CLIENT_VERSION: dshVersion,
+    })
+    assert.equal(Number.isSafeInteger(buildRecord.artifacts?.fileCount), true)
+    assert.equal(buildRecord.artifacts.fileCount > 0, true)
+    assert.match(buildRecord.artifacts.sha256, /^[0-9a-f]{64}$/u)
+    dshClientArtifacts = buildRecord.artifacts
+    dshWebIndexSha256 = createHash('sha256')
+      .update(await readFile(webIndex))
+      .digest('hex')
+    pluginCommit = await runChild('git', ['rev-parse', 'HEAD'], {
+      cwd: pluginRoot,
+      env: baseEnvironment,
+      label: 'plugin git identity',
+    })
+    pluginWorktreeDirty = (await runChild('git', ['status', '--porcelain'], {
+      cwd: pluginRoot,
+      env: baseEnvironment,
+      label: 'plugin worktree identity',
+    })) !== ''
+  }
   await access(webIndex)
 
   await runChild(process.execPath, [
@@ -1200,7 +1391,7 @@ async function main() {
   const tarballs = (await readdir(packDir)).filter(name => name.endsWith('.tgz'))
   assert.equal(tarballs.length, 1, 'plugin pack must produce exactly one tarball')
   const tarball = join(packDir, tarballs[0])
-  const pluginTarballSha256 = runBrowserBfcache
+  const pluginTarballSha256 = runOfficialSource
     ? createHash('sha256').update(await readFile(tarball)).digest('hex')
     : undefined
 
@@ -1226,7 +1417,7 @@ async function main() {
   const bundles = profileManifest.dsh?.profile?.bundles
   assert.ok(Array.isArray(bundles), 'official CLI did not create a profile bundle list')
   assert.equal(bundles.includes(PLUGIN_NAME), true, 'official CLI did not activate the packed plugin bundle')
-  if (runBrowserBfcache) {
+  if (runOfficialSource) {
     assert.deepEqual(bundles.slice(0, 2), [
       '@deepseek-ai/dsh-base',
       '@deepseek-ai/dsh-web-app',
@@ -1333,13 +1524,23 @@ export { WebSocketServer }
   await waitFor(() => fileExists(markerPath), TURN_TIMEOUT_MS, 'fail-closed provider shim activation')
   assert.equal(fakeProvider.acceptedConnections, 0, 'provider connected before any gateway consent')
 
-  const rootResponse = await withTimeout(fetch(harness.baseUrl), TURN_TIMEOUT_MS, 'root request')
+  if (!runAlphaAuth) {
+    assert.equal(harness.launchUrl, undefined, 'tokenized Harness launch requires the alpha auth smoke')
+  }
+  const authentication = runAlphaAuth ? await authenticateAlphaHarness(harness) : {}
+  const requestHeaders = authentication.cookie === undefined ? {} : { cookie: authentication.cookie }
+  const rootResponse = await withTimeout(fetch(harness.baseUrl, {
+    headers: requestHeaders,
+  }), TURN_TIMEOUT_MS, 'root request')
   const root = await rootResponse.text()
   assert.equal(rootResponse.status, 200)
   assert.equal(root.includes(`globalThis["__DSH_GUARDED_LIVE_VOICE__"] = {"v":1,"route":"${ROUTE}"}`), true)
 
+  const clientUrl = runAlphaAuth
+    ? advertisedPluginClientUrl(root, harness.baseUrl)
+    : new URL(`/plugins/${PLUGIN_NAME}/client.js`, harness.baseUrl)
   const clientResponse = await withTimeout(
-    fetch(`${harness.baseUrl}/plugins/${PLUGIN_NAME}/client.js`),
+    fetch(clientUrl, { headers: requestHeaders }),
     TURN_TIMEOUT_MS,
     'plugin client request',
   )
@@ -1352,15 +1553,17 @@ export { WebSocketServer }
   )
 
   const upgradeOnlyResponse = await withTimeout(
-    fetch(`${harness.baseUrl}${ROUTE}`),
+    fetch(`${harness.baseUrl}${ROUTE}`, { headers: requestHeaders }),
     TURN_TIMEOUT_MS,
     'plain HTTP gateway request',
   )
   assert.equal(upgradeOnlyResponse.status, 404)
 
-  const workspace = await rpc(harness.baseUrl, 'workspace.create', { path: workspaceDir }, 1)
+  const workspace = await rpc(harness.baseUrl, 'workspace.create', { path: workspaceDir }, 1, authentication)
   const workspaceId = workspace.workspace.workspaceId
-  const session = await rpc(harness.baseUrl, 'session.create', { workspaceId }, 2)
+  rememberSensitive(String(workspaceId))
+  const session = await rpc(harness.baseUrl, 'session.create', { workspaceId }, 2, authentication)
+  rememberSensitive(String(session.sessionId))
 
   if (runBrowserBfcache) {
     const browserBfcache = await driveOfficialBrowserBfcache(
@@ -1406,7 +1609,7 @@ export { WebSocketServer }
     return
   }
 
-  const gateway = await driveGateway(harness.baseUrl, session.sessionId, workspaceId)
+  const gateway = await driveGateway(harness.baseUrl, session.sessionId, workspaceId, authentication.cookie)
 
   assert.deepEqual(fakeProvider.providerEvents, [
     'session.update',
@@ -1434,11 +1637,42 @@ export { WebSocketServer }
     finalAssistantTranscript: gateway.finalAssistantTranscript,
     turnStatus: gateway.turnStatus,
     providerSocketDisposed: true,
+    ...(runAlphaAuth ? {
+      alphaRpcEndpoints: ['workspace/create', 'session/create'],
+      alphaRpcResponsesCorrelated: true,
+      authenticatedRootStatus: rootResponse.status,
+      cookieIssued: authentication.cookieIssued,
+      credentialBackedQwen: false,
+      dshBuiltFromCleanSource: !dshWorktreeDirty,
+      dshClientArtifacts,
+      dshCommit,
+      dshTag,
+      dshVersion,
+      dshWebIndexSha256,
+      dshWorktreeDirty,
+      launchTokenExchanged: authentication.launchTokenExchanged,
+      liveCredential: false,
+      liveProvider: false,
+      officialDshWebProfile: true,
+      os: { platform: process.platform, release: release() },
+      packagedDesktop: false,
+      physicalMicrophone: false,
+      physicalSpeaker: false,
+      pluginCommit,
+      pluginTarballSha256,
+      pluginWorktreeDirty,
+      providerEvents: fakeProvider.providerEvents,
+      sourceBuiltOfficialAlpha: true,
+      unauthenticatedVoiceUpgradeStatus: authentication.unauthenticatedVoiceUpgradeStatus,
+    } : {}),
   })}\n`)
 }
 
 try {
   await main()
+} catch (error) {
+  const detail = error instanceof Error ? (error.stack ?? error.message) : String(error)
+  throw new Error(redactSensitive(detail))
 } finally {
   if (gatewaySocket !== undefined && gatewaySocket.readyState !== WebSocket.CLOSED) {
     gatewaySocket.terminate()
@@ -1447,6 +1681,11 @@ try {
   activeChildren.clear()
   if (fakeProvider !== undefined) await fakeProvider.close().catch(() => {})
   if (temporaryRoot !== undefined) {
-    await rm(temporaryRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
+    try {
+      await rm(temporaryRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
+    } catch (error) {
+      const detail = error instanceof Error ? (error.stack ?? error.message) : String(error)
+      throw new Error(redactSensitive(`temporary cleanup failed: ${detail}`))
+    }
   }
 }

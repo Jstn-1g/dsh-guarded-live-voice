@@ -83,7 +83,14 @@ UI. The recorded DSH v0.1.1-rc.2 / Chrome 151 run verified BFCache restoration,
 DSH event-stream reconnection, active teardown, draft preservation, and fresh
 consent and Session binding. It used synthetic audio and a fake loopback
 provider; independent reproduction and packaged Desktop BFCache behavior
-remain open. This is not a marketplace-ready voice product and is not “ChatGPT
+remain open. A separate authenticated composition smoke now verifies the exact,
+clean source-built DSH `dsh-v0.1.2-alpha.1` Web profile: an unauthenticated voice
+upgrade receives `401`, the private launch token is exchanged for the Harness
+cookie without entering the receipt, and the authenticated client, workspace,
+Session, and fake-provider voice turn complete. This exact-tag result does not
+widen the published peer range, claim general alpha compatibility, or infer
+BFCache behavior for the alpha. This is not a marketplace-ready voice product
+and is not “ChatGPT
 Live parity.” DSH Live Voice is the product name; the guarded consent and
 authority model remains its security architecture.
 

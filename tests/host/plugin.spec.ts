@@ -2,9 +2,10 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { IncomingMessage } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
-import { apply } from '../../src/index.js'
+import { apply, inject } from '../../src/index.js'
+import { GuardedVoiceGateway } from '../../src/host/gateway.js'
 
-function contextFixture() {
+function contextFixture(connection: unknown = {}) {
   const disposers: Array<() => void> = []
   const sessionListeners: Array<(session: { readonly id: string }) => void> = []
   const indexListeners: Array<(table: unknown[]) => void> = []
@@ -14,6 +15,7 @@ function contextFixture() {
   } | undefined
   const resolve = vi.fn(async () => ({ value: 'never-export-this', source: 'test' }))
   const ctx = {
+    connection,
     credentials: { resolve },
     sessions: { get: () => ({ id: 's1' }) },
     workspaceRegistry: { list: () => [{ id: 'w1', sessionIds: ['s1'] }] },
@@ -47,15 +49,35 @@ function contextFixture() {
   }
 }
 
+function validConfig() {
+  return {
+    route: '/guarded-voice-test',
+    credentialRef: 'DASHSCOPE_API_KEY',
+    dashscopeWorkspaceId: 'workspace-1',
+    model: 'qwen-audio-3.0-realtime-plus',
+  } as const
+}
+
+function routeArguments() {
+  const request = {} as IncomingMessage
+  const end = vi.fn()
+  const socket = { end } as unknown as Duplex
+  const head = Buffer.alloc(0)
+  return { end, head, request, socket }
+}
+
+function disposeFixture(fixture: ReturnType<typeof contextFixture>): void {
+  for (const dispose of fixture.disposers.reverse()) dispose()
+}
+
 describe('host plugin composition', () => {
+  it('orders route registration after the Harness connection service', () => {
+    expect(inject).toEqual(['credentials', 'sessions', 'workspaceRegistry', 'webServer', 'connection'])
+  })
+
   it('registers the exact route without resolving a credential at startup', () => {
     const fixture = contextFixture()
-    apply(fixture.ctx, {
-      route: '/guarded-voice-test',
-      credentialRef: 'DASHSCOPE_API_KEY',
-      dashscopeWorkspaceId: 'workspace-1',
-      model: 'qwen-audio-3.0-realtime-plus',
-    })
+    apply(fixture.ctx, validConfig())
     expect(fixture.route()?.path).toBe('/guarded-voice-test')
     expect(fixture.resolve).not.toHaveBeenCalled()
     expect(fixture.sessionListeners).toHaveLength(1)
@@ -69,8 +91,83 @@ describe('host plugin composition', () => {
     }])
     expect(JSON.stringify(table)).not.toMatch(/DASHSCOPE|credential|workspace-1|qwen-audio/u)
     fixture.sessionListeners[0]?.({ id: 's1' })
-    for (const dispose of fixture.disposers.reverse()) dispose()
+    disposeFixture(fixture)
     expect(fixture.route()).toBeUndefined()
+  })
+
+  it('keeps the rc.2 connection shape on the existing carrier path', () => {
+    const fixture = contextFixture({ rpc: {} })
+    const gateway = vi.spyOn(GuardedVoiceGateway.prototype, 'handleUpgrade').mockImplementation(() => {})
+    try {
+      apply(fixture.ctx, validConfig())
+      const args = routeArguments()
+      fixture.route()?.handler(args.request, args.socket, args.head)
+      expect(gateway).toHaveBeenCalledOnce()
+      expect(gateway).toHaveBeenCalledWith(args.request, args.socket, args.head)
+      expect(args.end).not.toHaveBeenCalled()
+      expect(fixture.resolve).not.toHaveBeenCalled()
+    } finally {
+      gateway.mockRestore()
+      disposeFixture(fixture)
+    }
+  })
+
+  it('runs the alpha connection gate with its service receiver before the voice carrier', () => {
+    let connection: { requestRejection(request: IncomingMessage): undefined }
+    const requestRejection = vi.fn(function (this: unknown, _request: IncomingMessage) {
+      expect(this).toBe(connection)
+      return undefined
+    })
+    connection = { requestRejection }
+    const fixture = contextFixture(connection)
+    const gateway = vi.spyOn(GuardedVoiceGateway.prototype, 'handleUpgrade').mockImplementation(() => {})
+    try {
+      apply(fixture.ctx, validConfig())
+      const args = routeArguments()
+      fixture.route()?.handler(args.request, args.socket, args.head)
+      expect(requestRejection).toHaveBeenCalledWith(args.request)
+      expect(gateway).toHaveBeenCalledWith(args.request, args.socket, args.head)
+      expect(args.end).not.toHaveBeenCalled()
+    } finally {
+      gateway.mockRestore()
+      disposeFixture(fixture)
+    }
+  })
+
+  it.each([401, 403] as const)('short-circuits a Harness connection rejection with status %i', (status) => {
+    const requestRejection = vi.fn(() => status)
+    const fixture = contextFixture({ requestRejection })
+    const gateway = vi.spyOn(GuardedVoiceGateway.prototype, 'handleUpgrade').mockImplementation(() => {})
+    try {
+      apply(fixture.ctx, validConfig())
+      const args = routeArguments()
+      fixture.route()?.handler(args.request, args.socket, args.head)
+      expect(requestRejection).toHaveBeenCalledWith(args.request)
+      expect(args.end).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`^HTTP/1\\.1 ${String(status)} `, 'u')))
+      expect(gateway).not.toHaveBeenCalled()
+      expect(fixture.resolve).not.toHaveBeenCalled()
+    } finally {
+      gateway.mockRestore()
+      disposeFixture(fixture)
+    }
+  })
+
+  it.each([
+    ['throws', () => { throw new Error('gate failed') }, /gate failed/u],
+    ['returns an invalid status', () => 200, /invalid status/u],
+  ])('fails closed when the Harness connection gate %s', (_label, requestRejection, message) => {
+    const fixture = contextFixture({ requestRejection })
+    const gateway = vi.spyOn(GuardedVoiceGateway.prototype, 'handleUpgrade').mockImplementation(() => {})
+    try {
+      apply(fixture.ctx, validConfig())
+      const args = routeArguments()
+      expect(() => fixture.route()?.handler(args.request, args.socket, args.head)).toThrow(message)
+      expect(gateway).not.toHaveBeenCalled()
+      expect(fixture.resolve).not.toHaveBeenCalled()
+    } finally {
+      gateway.mockRestore()
+      disposeFixture(fixture)
+    }
   })
 
   it.each([
