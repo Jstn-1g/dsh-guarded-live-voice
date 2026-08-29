@@ -1,4 +1,4 @@
-name: Windows Desktop canary
+name: Windows Desktop backend canary (Live Voice not installed)
 
 on:
   workflow_dispatch:
@@ -12,6 +12,7 @@ concurrency:
 
 jobs:
   canary:
+    name: Packaged shell backend only (Live Voice not installed)
     runs-on: windows-2025
     timeout-minutes: 45
     env:
@@ -38,13 +39,6 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           path: automation
-          persist-credentials: false
-
-      - name: Check out immutable plugin candidate
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          ref: 6b973b250c3a28a066c51ddce10da781f69b64de
-          path: preview
           persist-credentials: false
 
       - name: Set up pnpm
