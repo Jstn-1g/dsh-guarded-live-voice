@@ -1,12 +1,14 @@
-import type { VoicePanelProps } from './contract.js'
+import { sessionIdOf, type VoicePanelProps } from './contract.js'
 import css from './voice.module.css'
 
 /** User-visible disclosure and setup result; it never receives the bearer challenge. */
-export function VoicePanel({
-  sessionId, useVoice, startVoice, acceptDisclosure, stopVoice,
-  beginVoiceCapture, finishVoiceCapture, getVoiceSnapshot,
-  isComposerBindingCurrent, claimVoiceDraftHandoff, inputActions, input, t,
-}: VoicePanelProps) {
+export function VoicePanel(props: VoicePanelProps) {
+  const {
+    useVoice, startVoice, acceptDisclosure, stopVoice,
+    beginVoiceCapture, finishVoiceCapture, getVoiceSnapshot,
+    isComposerBindingCurrent, claimVoiceDraftHandoff, inputActions, input, t,
+  } = props
+  const sessionId = sessionIdOf(props)
   const voice = useVoice(snapshot => snapshot)
   if (voice.sessionId !== String(sessionId) || voice.phase === 'idle') return null
 

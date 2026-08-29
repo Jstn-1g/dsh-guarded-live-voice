@@ -26,8 +26,23 @@ export interface VoiceInjected {
   readonly finishVoiceCapture: (sessionId: string) => void
 }
 
+interface SessionScopedCompatibilityProps {
+  /** Compatibility view; strict Session slots supply this at runtime. */
+  readonly sessionId?: unknown
+}
+
+/** Read the strict Session-slot identity without coupling to its current owner package. */
+export function sessionIdOf(props: SessionScopedCompatibilityProps): string {
+  if (typeof props.sessionId !== 'string' || props.sessionId.length === 0) {
+    throw new Error('DSH Live Voice requires a strict Session-scoped slot identity')
+  }
+  return props.sessionId
+}
+
 export type VoiceControlProps =
-  PropsRuntime<'conversation.input.left'> & InjectFace<VoiceInjected> & PropsLocale<typeof NS>
+  PropsRuntime<'conversation.input.left'> & SessionScopedCompatibilityProps &
+  InjectFace<VoiceInjected> & PropsLocale<typeof NS>
 
 export type VoicePanelProps =
-  PropsRuntime<'conversation.input.dock'> & InjectFace<VoiceInjected> & PropsLocale<typeof NS>
+  PropsRuntime<'conversation.input.dock'> & SessionScopedCompatibilityProps &
+  InjectFace<VoiceInjected> & PropsLocale<typeof NS>
