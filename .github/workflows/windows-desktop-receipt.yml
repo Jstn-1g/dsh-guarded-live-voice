@@ -188,8 +188,15 @@ jobs:
       - name: Install exact packaged Desktop
         shell: pwsh
         run: |
-          & $env:INSTALLER_PATH /S /NS "/D=$env:DESKTOP_INSTALL_DIR"
-          if ($LASTEXITCODE -ne 0) { throw 'Desktop installer exited unsuccessfully' }
+          $installer = Start-Process `
+            -FilePath $env:INSTALLER_PATH `
+            -ArgumentList @('/S', '/NS', "/D=$env:DESKTOP_INSTALL_DIR") `
+            -Wait `
+            -PassThru `
+            -WindowStyle Hidden
+          if ($installer.ExitCode -ne 0) {
+            throw "Desktop installer exited with code $($installer.ExitCode)"
+          }
           $desktopExe = Join-Path $env:DESKTOP_INSTALL_DIR 'deepseek-harness-desktop.exe'
           if (!(Test-Path -LiteralPath $desktopExe -PathType Leaf)) {
             throw 'Installed Desktop executable was not found at the exact expected path'
@@ -262,8 +269,15 @@ jobs:
             }
             $uninstaller = Join-Path $installRoot 'uninstall.exe'
             if (Test-Path -LiteralPath $uninstaller -PathType Leaf) {
-              & $uninstaller /S /NS
-              if ($LASTEXITCODE -ne 0) { throw 'Desktop uninstaller exited unsuccessfully' }
+              $uninstall = Start-Process `
+                -FilePath $uninstaller `
+                -ArgumentList @('/S', '/NS') `
+                -Wait `
+                -PassThru `
+                -WindowStyle Hidden
+              if ($uninstall.ExitCode -ne 0) {
+                throw "Desktop uninstaller exited with code $($uninstall.ExitCode)"
+              }
             }
           }
 
