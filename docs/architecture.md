@@ -73,6 +73,17 @@ bounded redesign over the existing Remote/Gateway facilities. It must preserve
 all consent, authority, credential, backpressure, byte, time, and teardown
 invariants.
 
+The issue #20 synthetic proof establishes only that the exact alpha's generated
+strict Typert Remote calls can carry bounded canonical-base64 PCM and events
+through the real Client Connection/Gateway and Host shared-Fetch/stream seams
+over a structured-clone `MessageChannel`. Its bounded page adapter is test-only:
+besides normalizing the URL, it applies proof-specific body, queue, error,
+abort, and lifecycle policy and is not a drop-in `WorkerTunnel`. The exact
+alpha's unmodified `WorkerTunnel` still throws while resolving a unary URL from
+a `file://` null origin, so that implementation cannot be reused unchanged
+there. The official Desktop carrier and plugin seam remain unconfirmed, and
+the proof does not alter the production carrier.
+
 All provider behavior is fake-server tested. Capture/resampling and audible
 playback are deterministic dependency-fake tested, including permission,
 worklet-crash, cap, ordering, backpressure, and teardown paths. Credentialed
