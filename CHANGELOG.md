@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Add a non-installing Windows packaged-shell preflight for the exact community
+  Desktop v0.9.3 candidate. It refuses non-disposable state, the default DSH
+  home, prior Desktop/app/shim state, an explicit or PATH-discovered user DSH
+  core, a running process, port 3080 collisions, and any installer whose name,
+  size, or SHA-256 differs from the pinned asset;
+  it also uses a transient exclusive loopback bind to detect reserved or
+  otherwise unavailable ports. Its sanitized JSON receipt makes no install,
+  launch, installed-core, physical-device, live-provider, or packaged-Desktop
+  claim.
 - Add a controlled, loopback-only Chromium BFCache smoke for idle and active
   synthetic-audio save/restore paths, plus an opt-in exact Harness smoke that
   rebuilds with the official client build profile, installs into a disposable

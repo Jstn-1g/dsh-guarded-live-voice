@@ -33,6 +33,63 @@ reachable only through a `ctx.webServer.registerUpgrade` route. [Issue
 #20](https://github.com/Jstn-1g/dsh-live-voice/issues/20) must supply or validate
 a portable transport before that architecture can be tested.
 
+## Disposable Windows packaged-shell preflight
+
+The exact served-Web shell candidate in issue #9 is community DeepSeek Harness
+Desktop v0.9.3, commit `2a467b5f33f53908a8c008280180c0fdba5ab948`.
+Run its preflight only inside Windows Sandbox or a throwaway VM that will be
+discarded after the receipt.
+
+The shell installer does **not** pin or contain one Harness core. On a fresh
+launch, v0.9.3 prefers a valid user core discovered through `DSH_CLI_PATH` or a
+`dsh.cmd`, `dsh.exe`, or `dsh.bat` entry on `PATH`; otherwise its packaged-core
+path resolves the moving `latest` asset from
+`dsh-tauri-desk/deepseek-harness-pkg`. Therefore the shell installer hash cannot
+establish `dsh-0.1.1-rc.2` or any other Harness identity. Record the actual
+runtime-selected core version and an immutable release/asset digest before
+installing the voice plugin; without that post-install evidence, #9 remains
+inconclusive.
+
+Download `Deepseek.Harness.Desktop_0.9.3_x64-setup.exe` from the exact
+[v0.9.3 release](https://github.com/dsh-tauri-desk/deepseek-harness-desktop/releases/tag/v0.9.3),
+then run this command from an explicit current-main DSH Live Voice checkout:
+
+```powershell
+$env:DSH_LIVE_VOICE_DISPOSABLE_VM = 'I_ACKNOWLEDGE_THIS_IS_A_DISPOSABLE_VM'
+$env:DSH_HOME = Join-Path $env:TEMP ("dsh-live-voice-desktop-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $env:DSH_HOME | Out-Null
+pnpm run preflight:desktop:windows -- --installer 'C:\path\to\Deepseek.Harness.Desktop_0.9.3_x64-setup.exe'
+```
+
+The preflight does not write files or registry state. It reads local state,
+hashes the installer, and briefly performs an exclusive loopback bind on port
+3080. It refuses to report `readyForDisposableInstall: true` unless all of
+these are true:
+
+- the native host and Node process are Windows x64 (not an emulated x64 process
+  on ARM64), and the exact disposable-VM acknowledgement is set;
+- `DSH_HOME` is an explicit, empty, non-link child of Windows `TEMP` with the
+  required disposable prefix, while the ordinary `~/.dsh` is absent;
+- no known Desktop install, app-data, shortcut, CLI shim, uninstall
+  registration (including GUID-key WiX/MSI entries), persistent NSIS install-
+  location registration, Desktop process, or listener/bind conflict on port
+  3080 already exists; and
+- `DSH_CLI_PATH` is unset and no user `dsh.cmd`, `dsh.exe`, or `dsh.bat`
+  candidate exists in the exact `PATH` that will launch Desktop; and
+- the installer name, size (`5,353,920` bytes), and SHA-256
+  (`5ed93b77f1a3503ad5e339d3ba247cab13dd74838517cebe450fd7fc7bdfa133`)
+  match the pinned release asset.
+
+Its JSON contains the preflight-script digest, shell versions, expected hashes,
+native/process architectures, booleans, and bounded failure codes—not paths,
+credentials, audio, transcripts, cookies, tokens, or workspace content. It does
+not download, install, launch, persist configuration, uninstall, or delete.
+`readyForDisposableInstall: true` authorizes only the exact shell install in the
+throwaway VM. It is not ready-to-test evidence, a Harness-core identity, or a
+packaged-Desktop pass. Preserve the same `DSH_HOME`, environment, `PATH`, launch
+context, and installer throughout that disposable-VM run, then bind the later
+#9 receipt to the core and plugin revisions actually installed.
+
 ## Install and mount check
 
 Install the exact preview into the Web profile:
