@@ -65,20 +65,23 @@ Host and browser builds, package linting, browser-bundle materialization, and a
 dry-run package-content audit. Focused tests are useful while iterating, but the
 complete check is the pull-request baseline.
 
-Three optional smokes cover narrower integration paths:
+Four optional smokes cover narrower integration paths:
 
 ```sh
 pnpm run smoke:harness:fake-qwen
 pnpm run smoke:browser:unload
 pnpm run smoke:browser:bfcache
+pnpm run smoke:harness:browser:bfcache
 ```
 
 The packed Harness smoke requires a compatible local DeepSeek Harness checkout
 through `DSH_HARNESS_ROOT`. The browser smokes use a controlled synthetic audio
 source. Read [TESTING.md](TESTING.md) and [docs/conformance.md](docs/conformance.md)
 before interpreting a result. The BFCache smoke proves only its standalone
-Chromium path; none of these smokes proves a live provider, physical audio
-device, exact official DSH-profile BFCache behavior, or packaged Desktop path.
+Chromium path. The final opt-in smoke rebuilds an exact clean Harness checkout
+and drives its shipped `web` profile, but still uses synthetic audio and a fake
+loopback provider. None of these smokes proves a live provider, physical audio
+device, packaged Desktop path, or independent BFCache reproduction.
 
 Most contributions do not need provider credentials, a microphone, a speaker,
 or a packaged Desktop build. The test suite uses deterministic fakes, and the
@@ -103,10 +106,10 @@ surface from the diff.
 ## Tester evidence and release claims
 
 The open [release gate](https://github.com/Jstn-1g/dsh-live-voice/issues/5)
-tracks credential-backed Qwen, physical microphone and speaker, BFCache, and
-packaged-Desktop validation. A report must identify the exact version,
-environment, procedure, outcome, and sanitized evidence. We will reproduce or
-independently review evidence before changing a gate.
+tracks credential-backed Qwen, physical microphone and speaker, independent
+BFCache reproduction, and packaged-Desktop validation. A report must identify
+the exact version, environment, procedure, outcome, and sanitized evidence. We
+will reproduce or independently review evidence before changing a gate.
 
 Do not describe the project as stable, production-ready, marketplace-accepted,
 officially endorsed, continuous conversation, barge-in capable, or equivalent

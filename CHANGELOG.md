@@ -3,9 +3,13 @@
 ## Unreleased
 
 - Add a controlled, loopback-only Chromium BFCache smoke for idle and active
-  synthetic-audio save/restore paths. This is standalone browser evidence only;
-  exact official DSH Web-profile and packaged Desktop BFCache validation remain
-  open.
+  synthetic-audio save/restore paths, plus an opt-in exact Harness smoke that
+  rebuilds with the official client build profile, installs into a disposable
+  shipped Web profile, and drives the real DSH UI. The DSH v0.1.1-rc.2 / Chrome
+  151 receipt covers BFCache restoration, DSH stream reconnection, teardown,
+  draft preservation, and fresh Session/consent binding. It remains
+  fake-provider, synthetic-audio evidence pending independent reproduction;
+  packaged Desktop validation remains open.
 - Prepare the production client dependency graph for the upstream
   `dsh-client-runtime` to `dsh-client-ui-renderer` migration while preserving
   the current verified DSH release-candidate compatibility range. The upstream

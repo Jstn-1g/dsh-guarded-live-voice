@@ -81,9 +81,10 @@ capturing sensitive content:
 7. Closing, cancelling, Session disposal, or page teardown releases owned audio,
    sockets, timers, and buffers for the path being tested.
 
-Credential-backed Qwen, physical microphone and speaker, OS indicators,
-BFCache, and packaged Desktop behavior remain open gates until exact evidence
-is independently reviewed.
+Credential-backed Qwen, physical microphone and speaker, OS indicators, and
+packaged Desktop behavior remain open gates. Maintainer-run synthetic BFCache
+evidence is recorded below, but the BFCache issue remains open for independent
+reproduction on its exact environment.
 
 ## Deterministic contributor checks
 
@@ -128,6 +129,28 @@ authority after restoration, and complete a fresh disclosure-bound lifecycle.
 This fixture replaces `getUserMedia`, uses only loopback transport, and loads
 the built plugin client in a minimal slot harness. It does not prove a physical
 device, live provider, exact official DSH Web profile, or packaged Desktop path.
+
+The opt-in official Web-profile BFCache smoke requires a clean, exact Harness
+checkout with its dependencies installed and a locally installed stable Google
+Chrome. It rebuilds the Harness Host, Client, and Web artifacts with the
+official client build values, installs the current packed plugin through the
+official CLI into a disposable shipped `web` profile, and drives both idle and
+active cases through the real DSH UI:
+
+```sh
+DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
+  pnpm run smoke:harness:browser:bfcache
+```
+
+The headed run fails unless Chrome reports an actual BFCache restore, both DSH
+event streams reconnect, the active resources are released, the original draft
+is unchanged, and restored lifecycles require fresh disclosure, challenges, and
+Session binding. The receipt records the exact DSH commit/version, built-client
+artifact digest, Web index digest, Chrome, Playwright, OS, and explicit claim
+limits. It uses a fake loopback provider and synthetic Web Audio; it does not
+use a real provider credential or credential-backed Qwen, a physical microphone
+or speaker, an OS indicator, or packaged Desktop. Issue #7 remains open until
+another tester independently reproduces an exact-environment result.
 
 See [docs/conformance.md](docs/conformance.md) for what each smoke proves and,
 just as importantly, what it does not prove.

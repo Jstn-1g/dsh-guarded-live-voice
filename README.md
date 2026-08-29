@@ -76,11 +76,16 @@ credential-backed audio roundtrip, physical-device audio, or packaged Desktop
 browser smoke is claimed. A standalone controlled-Chromium fixture now verifies
 real BFCache save/restore for idle and synthetic active-audio paths, including
 resource teardown and stale client Session, consent, and composer-binding
-rejection. Exact official DSH Web-profile and packaged Desktop BFCache behavior
-remain unproven. This is not a
-marketplace-ready voice product and is not “ChatGPT Live parity.” DSH Live Voice
-is the product name; the guarded consent and authority model remains its
-security architecture.
+rejection. A second opt-in smoke rebuilds an exact, clean Harness checkout with
+the official client build profile, installs the packed plugin through the
+official CLI into a disposable shipped `web` profile, and drives the real DSH
+UI. The recorded DSH v0.1.1-rc.2 / Chrome 151 run verified BFCache restoration,
+DSH event-stream reconnection, active teardown, draft preservation, and fresh
+consent and Session binding. It used synthetic audio and a fake loopback
+provider; independent reproduction and packaged Desktop BFCache behavior
+remain open. This is not a marketplace-ready voice product and is not “ChatGPT
+Live parity.” DSH Live Voice is the product name; the guarded consent and
+authority model remains its security architecture.
 
 The disclosure flow is user-visible, but it is not cryptographic proof that a
 human accepted it. The one-shot challenge proves control of that local client

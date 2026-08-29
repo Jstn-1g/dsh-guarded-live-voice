@@ -24,7 +24,7 @@ Verification scope and results:
 - [ ] Invalid, stale, oversized, ambiguous, and out-of-order inputs still fail
   closed where applicable.
 - [ ] User-facing documentation keeps unverified credential-backed Qwen,
-  physical-device, BFCache, and packaged-Desktop paths explicitly labeled as
-  open preview gates.
+  physical-device, and packaged-Desktop paths open, and distinguishes
+  maintainer BFCache evidence from independent reproduction.
 
 If a checkbox is not applicable, explain why here:
