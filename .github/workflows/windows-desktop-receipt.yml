@@ -1,0 +1,277 @@
+name: Windows Desktop canary
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dsh-live-voice-windows-desktop-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    env:
+      DESKTOP_RELEASE: v0.9.3
+      DESKTOP_COMMIT: 2a467b5f33f53908a8c008280180c0fdba5ab948
+      DESKTOP_INSTALLER_NAME: Deepseek.Harness.Desktop_0.9.3_x64-setup.exe
+      DESKTOP_INSTALLER_ASSET_ID: '534988643'
+      DESKTOP_INSTALLER_URL: https://github.com/dsh-tauri-desk/deepseek-harness-desktop/releases/download/v0.9.3/Deepseek.Harness.Desktop_0.9.3_x64-setup.exe
+      DESKTOP_INSTALLER_BYTES: '5353920'
+      DESKTOP_INSTALLER_SHA256: 5ed93b77f1a3503ad5e339d3ba247cab13dd74838517cebe450fd7fc7bdfa133
+      DSH_CORE_RELEASE: dsh-0.1.1-rc.2-32485170079
+      DSH_CORE_VERSION: 0.1.1-rc.2
+      DSH_CORE_ASSET_ID: '523757080'
+      DSH_CORE_ASSET_NAME: deepseek-harness-pkg-windows.zip
+      DSH_CORE_ASSET_URL: https://github.com/dsh-tauri-desk/deepseek-harness-pkg/releases/download/dsh-0.1.1-rc.2-32485170079/deepseek-harness-pkg-windows.zip
+      DSH_CORE_ASSET_BYTES: '39046365'
+      DSH_CORE_ASSET_SHA256: 6ed77bae333650e4ed3a82b440a1d666d5fbc01ad7a2becd78d7afc4ff49aa8c
+      DSH_LIVE_VOICE_DISPOSABLE_VM: I_ACKNOWLEDGE_THIS_IS_A_DISPOSABLE_VM
+      DSH_TELEMETRY_DISABLED: '1'
+      NO_COLOR: '1'
+
+    steps:
+      - name: Check out canary driver
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: automation
+          persist-credentials: false
+
+      - name: Check out immutable plugin candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: 6b973b250c3a28a066c51ddce10da781f69b64de
+          path: preview
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 11.7.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: automation/pnpm-lock.yaml
+
+      - name: Install canary dependencies
+        shell: pwsh
+        run: pnpm --dir automation install --frozen-lockfile
+
+      - name: Prepare disposable state and verify exact release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $receiptDir = Join-Path $env:RUNNER_TEMP 'dsh-live-voice-receipts'
+          $dshHome = Join-Path $env:RUNNER_TEMP ('dsh-live-voice-desktop-' + [guid]::NewGuid().ToString('N'))
+          $installerPath = Join-Path $env:RUNNER_TEMP $env:DESKTOP_INSTALLER_NAME
+          $coreAssetPath = Join-Path $env:RUNNER_TEMP $env:DSH_CORE_ASSET_NAME
+          $installDir = Join-Path $env:RUNNER_TEMP 'dsh-desktop-v093'
+          New-Item -ItemType Directory -Path $receiptDir, $dshHome | Out-Null
+
+          $desktopRef = gh api repos/dsh-tauri-desk/deepseek-harness-desktop/git/ref/tags/v0.9.3 |
+            ConvertFrom-Json
+          if (
+            $LASTEXITCODE -ne 0 -or
+            $desktopRef.object.type -ne 'commit' -or
+            $desktopRef.object.sha -ne $env:DESKTOP_COMMIT
+          ) {
+            throw 'Desktop release tag no longer resolves to the pinned commit'
+          }
+          $desktopRelease = gh api repos/dsh-tauri-desk/deepseek-harness-desktop/releases/tags/v0.9.3 |
+            ConvertFrom-Json
+          $desktopAsset = @($desktopRelease.assets | Where-Object {
+            $_.name -eq $env:DESKTOP_INSTALLER_NAME
+          })
+          if ($desktopAsset.Count -ne 1) {
+            throw 'Pinned Desktop installer was not unique in its public release'
+          }
+          $desktopAsset = $desktopAsset[0]
+          if (
+            [string]$desktopAsset.id -ne $env:DESKTOP_INSTALLER_ASSET_ID -or
+            [int64]$desktopAsset.size -ne [int64]$env:DESKTOP_INSTALLER_BYTES -or
+            $desktopAsset.digest -ne "sha256:$env:DESKTOP_INSTALLER_SHA256" -or
+            $desktopAsset.browser_download_url -ne $env:DESKTOP_INSTALLER_URL
+          ) {
+            throw 'Desktop installer release metadata no longer matches the pin'
+          }
+          Invoke-WebRequest -Uri $env:DESKTOP_INSTALLER_URL -OutFile $installerPath
+          $installer = Get-Item -LiteralPath $installerPath
+          if ($installer.Length -ne [int64]$env:DESKTOP_INSTALLER_BYTES) {
+            throw 'Desktop installer size differed from the pinned release asset'
+          }
+          $installerHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installerPath).Hash.ToLowerInvariant()
+          if ($installerHash -ne $env:DESKTOP_INSTALLER_SHA256) {
+            throw 'Desktop installer digest differed from the pinned release asset'
+          }
+
+          $latest = gh api repos/dsh-tauri-desk/deepseek-harness-pkg/releases/latest | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $latest.tag_name -ne $env:DSH_CORE_RELEASE) {
+            throw 'Desktop moving-latest Harness release no longer matches the canary pin'
+          }
+          $asset = @($latest.assets | Where-Object { $_.name -eq $env:DSH_CORE_ASSET_NAME })
+          if ($asset.Count -ne 1) { throw 'Pinned Windows Harness asset was not unique in latest release' }
+          $asset = $asset[0]
+          if (
+            [string]$asset.id -ne $env:DSH_CORE_ASSET_ID -or
+            [int64]$asset.size -ne [int64]$env:DSH_CORE_ASSET_BYTES -or
+            $asset.digest -ne "sha256:$env:DSH_CORE_ASSET_SHA256" -or
+            $asset.browser_download_url -ne $env:DSH_CORE_ASSET_URL
+          ) {
+            throw 'Desktop moving-latest Harness asset metadata no longer matches the canary pin'
+          }
+          Invoke-WebRequest -Uri $env:DSH_CORE_ASSET_URL -OutFile $coreAssetPath
+          $coreAsset = Get-Item -LiteralPath $coreAssetPath
+          if ($coreAsset.Length -ne [int64]$env:DSH_CORE_ASSET_BYTES) {
+            throw 'Harness core asset size differed from the pin'
+          }
+          $coreHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $coreAssetPath).Hash.ToLowerInvariant()
+          if ($coreHash -ne $env:DSH_CORE_ASSET_SHA256) {
+            throw 'Harness core asset digest differed from the pin'
+          }
+
+          @(
+            "TEMP=$env:RUNNER_TEMP"
+            "TMP=$env:RUNNER_TEMP"
+            "RECEIPT_DIR=$receiptDir"
+            "DSH_HOME=$dshHome"
+            "INSTALLER_PATH=$installerPath"
+            "DESKTOP_INSTALL_DIR=$installDir"
+            'DESKTOP_CDP_URL=http://127.0.0.1:9222'
+            'DSH_DESKTOP_CORE_ASSET_VERIFIED=true'
+          ) | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Require exact-tag disposable-install preflight
+        shell: pwsh
+        run: |
+          $receipt = & node preview/scripts/preflight-windows-desktop.mjs --installer $env:INSTALLER_PATH
+          if ($LASTEXITCODE -ne 0) { throw 'Exact-tag Windows Desktop preflight refused installation' }
+          $receipt | Out-File -LiteralPath (Join-Path $env:RECEIPT_DIR 'preflight.json') -Encoding utf8
+          $parsed = $receipt | ConvertFrom-Json
+          if ($parsed.readyForDisposableInstall -ne $true) {
+            throw 'Exact-tag preflight did not authorize this disposable runner'
+          }
+
+      - name: Require WebView2 and install loopback-only canary policy
+        shell: pwsh
+        run: |
+          $webViewVersions = @(
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+            'HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+            'HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          ) | ForEach-Object {
+            if (Test-Path -LiteralPath $_) {
+              (Get-ItemProperty -LiteralPath $_ -Name pv -ErrorAction SilentlyContinue).pv
+            }
+          } | Where-Object { $_ } | Select-Object -Unique
+          if (@($webViewVersions).Count -ne 1) {
+            throw 'Canary requires exactly one identifiable preinstalled WebView2 runtime version'
+          }
+          $portProbe = Get-NetTCPConnection -LocalPort 9222 -State Listen -ErrorAction SilentlyContinue
+          if ($null -ne $portProbe) { throw 'Loopback CDP port 9222 was already occupied' }
+
+          $policyPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+          New-Item -Path $policyPath -Force | Out-Null
+          $arguments = '--remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --remote-allow-origins=*'
+          foreach ($appId in @('io.github.hairyf.deepseek-harness-desktop', 'deepseek-harness-desktop.exe')) {
+            New-ItemProperty -LiteralPath $policyPath -Name $appId -PropertyType String -Value $arguments -Force | Out-Null
+          }
+          "WEBVIEW2_RUNTIME_VERSION=$($webViewVersions[0])" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install exact packaged Desktop
+        shell: pwsh
+        run: |
+          & $env:INSTALLER_PATH /S /NS "/D=$env:DESKTOP_INSTALL_DIR"
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop installer exited unsuccessfully' }
+          $desktopExe = Join-Path $env:DESKTOP_INSTALL_DIR 'deepseek-harness-desktop.exe'
+          if (!(Test-Path -LiteralPath $desktopExe -PathType Leaf)) {
+            throw 'Installed Desktop executable was not found at the exact expected path'
+          }
+          @(
+            "DESKTOP_EXE=$desktopExe"
+            "DESKTOP_EXE_SHA256=$((Get-FileHash -Algorithm SHA256 -LiteralPath $desktopExe).Hash.ToLowerInvariant())"
+          ) | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Launch packaged shell and run backend canary
+        shell: pwsh
+        run: |
+          $desktop = Start-Process -FilePath $env:DESKTOP_EXE -PassThru -WindowStyle Hidden
+          $desktop.Id | Out-File -LiteralPath (Join-Path $env:RUNNER_TEMP 'dsh-desktop.pid') -Encoding ascii
+          $deadline = (Get-Date).AddMinutes(3)
+          do {
+            try {
+              $cdp = Invoke-RestMethod -Uri "$env:DESKTOP_CDP_URL/json/version" -TimeoutSec 5
+              if ($null -ne $cdp.webSocketDebuggerUrl) { break }
+            } catch {}
+            Start-Sleep -Seconds 1
+          } while ((Get-Date) -lt $deadline)
+          if ($null -eq $cdp.webSocketDebuggerUrl) {
+            throw 'Packaged WebView2 did not expose CDP within the deadline'
+          }
+          $listeners = @(Get-NetTCPConnection -LocalPort 9222 -State Listen -ErrorAction Stop)
+          if ($listeners.Count -eq 0 -or @($listeners | Where-Object {
+            $_.LocalAddress -notin @('127.0.0.1', '::1')
+          }).Count -ne 0) {
+            throw 'WebView2 CDP was not bound exclusively to loopback'
+          }
+
+          & node automation/scripts/verify-windows-desktop-canary.mjs `
+            --cdp-url $env:DESKTOP_CDP_URL `
+            --receipt (Join-Path $env:RECEIPT_DIR 'receipt.json')
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged Desktop backend canary failed' }
+
+          $receipt = Get-Content -Raw -LiteralPath (Join-Path $env:RECEIPT_DIR 'receipt.json') |
+            ConvertFrom-Json
+          if (
+            $receipt.sanitized -ne $true -or
+            $receipt.checks.packagedHarnessIframeReached -ne $true -or
+            $receipt.actions.liveVoiceInstalled -ne $false
+          ) {
+            throw 'Canary receipt did not preserve its exact claim boundary'
+          }
+
+      - name: Stop Desktop, remove canary policy, and uninstall shell
+        if: always()
+        shell: pwsh
+        run: |
+          $pidFile = Join-Path $env:RUNNER_TEMP 'dsh-desktop.pid'
+          if (Test-Path -LiteralPath $pidFile -PathType Leaf) {
+            $desktopPid = [int](Get-Content -Raw -LiteralPath $pidFile)
+            if ($null -ne (Get-Process -Id $desktopPid -ErrorAction SilentlyContinue)) {
+              & taskkill.exe /PID $desktopPid /T /F | Out-Null
+            }
+          }
+
+          $policyPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+          foreach ($appId in @('io.github.hairyf.deepseek-harness-desktop', 'deepseek-harness-desktop.exe')) {
+            Remove-ItemProperty -LiteralPath $policyPath -Name $appId -ErrorAction SilentlyContinue
+          }
+
+          if ($env:DESKTOP_INSTALL_DIR) {
+            $tempRoot = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd([IO.Path]::DirectorySeparatorChar)
+            $installRoot = [IO.Path]::GetFullPath($env:DESKTOP_INSTALL_DIR)
+            if (!$installRoot.StartsWith($tempRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+              throw 'Refusing cleanup outside the exact runner temporary directory'
+            }
+            $uninstaller = Join-Path $installRoot 'uninstall.exe'
+            if (Test-Path -LiteralPath $uninstaller -PathType Leaf) {
+              & $uninstaller /S /NS
+              if ($LASTEXITCODE -ne 0) { throw 'Desktop uninstaller exited unsuccessfully' }
+            }
+          }
+
+      - name: Upload sanitized canary receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dsh-live-voice-windows-desktop-canary
+          path: ${{ runner.temp }}\dsh-live-voice-receipts
+          if-no-files-found: warn
+          retention-days: 30
