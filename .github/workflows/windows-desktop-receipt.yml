@@ -147,15 +147,15 @@ jobs:
             'DSH_DESKTOP_CORE_ASSET_VERIFIED=true'
           ) | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Require exact-tag disposable-install preflight
+      - name: Require reviewed disposable-install preflight
         shell: pwsh
         run: |
-          $receipt = & node preview/scripts/preflight-windows-desktop.mjs --installer $env:INSTALLER_PATH
+          $receipt = & node automation/scripts/preflight-windows-desktop.mjs --installer $env:INSTALLER_PATH
           $preflightExit = $LASTEXITCODE
           $receipt | Out-File -LiteralPath (Join-Path $env:RECEIPT_DIR 'preflight.json') -Encoding utf8
           $parsed = $receipt | ConvertFrom-Json
           if ($preflightExit -ne 0 -or $parsed.readyForDisposableInstall -ne $true) {
-            throw 'Exact-tag preflight did not authorize this disposable runner'
+            throw 'Reviewed preflight did not authorize this disposable runner'
           }
 
       - name: Require WebView2 and install loopback-only canary policy

@@ -391,15 +391,12 @@ async function scanProgramShortcutTree(root, inspect, readDirectory) {
 function uninstallRegistryTrees() {
   return [
     {
-      parent: 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion',
       root: 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
     },
     {
-      parent: 'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion',
       root: 'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
     },
     {
-      parent: 'HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion',
       root: 'HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
     },
   ]
@@ -408,12 +405,10 @@ function uninstallRegistryTrees() {
 function autostartRegistryTrees() {
   return [
     {
-      parent: 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion',
       root: 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
       recursive: false,
     },
     {
-      parent: 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved',
       root: 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run',
       recursive: false,
     },
@@ -423,17 +418,14 @@ function autostartRegistryTrees() {
 function installLocationRegistryTrees() {
   return [
     {
-      parent: 'HKCU\\Software',
       root: 'HKCU\\Software\\github',
       product: `HKCU\\Software\\github\\${PRODUCT_NAME}`,
     },
     {
-      parent: 'HKLM\\Software',
       root: 'HKLM\\Software\\github',
       product: `HKLM\\Software\\github\\${PRODUCT_NAME}`,
     },
     {
-      parent: 'HKLM\\Software\\WOW6432Node',
       root: 'HKLM\\Software\\WOW6432Node\\github',
       product: `HKLM\\Software\\WOW6432Node\\github\\${PRODUCT_NAME}`,
     },
@@ -448,23 +440,36 @@ function normalizeRegistryKey(value) {
     .toLowerCase()
 }
 
-function registryTreeProbe(tree, spawn) {
-  const parentProbe = runProbe('reg.exe', ['query', tree.parent], spawn)
-  if (!parentProbe.available || parentProbe.status !== 0) {
-    return { definitive: false, output: '' }
-  }
-  const treeArguments = ['query', tree.root]
-  if (tree.recursive !== false) treeArguments.push('/s')
-  const treeProbe = runProbe('reg.exe', treeArguments, spawn)
-  if (!treeProbe.available) return { definitive: false, output: '' }
-  if (treeProbe.status === 0) return { definitive: true, output: treeProbe.stdout }
-  if (treeProbe.status !== 1) return { definitive: false, output: '' }
+function parentRegistryKey(root) {
+  const separator = String(root).trim().lastIndexOf('\\')
+  return separator > 0 ? String(root).trim().slice(0, separator) : undefined
+}
 
-  const normalizedRoot = normalizeRegistryKey(tree.root)
-  const rootWasListed = parentProbe.stdout
+function registryKeyProbe(root, spawn, recursive = false) {
+  const arguments_ = ['query', root]
+  if (recursive) arguments_.push('/s')
+  const probe = runProbe('reg.exe', arguments_, spawn)
+  if (!probe.available) return { definitive: false, exists: false, output: '' }
+  if (probe.status === 0) return { definitive: true, exists: true, output: probe.stdout }
+  if (probe.status !== 1) return { definitive: false, exists: false, output: '' }
+
+  const parent = parentRegistryKey(root)
+  if (!parent) return { definitive: false, exists: false, output: '' }
+  const parentProbe = registryKeyProbe(parent, spawn)
+  if (!parentProbe.definitive) return { definitive: false, exists: false, output: '' }
+  if (!parentProbe.exists) return { definitive: true, exists: false, output: '' }
+
+  const normalizedRoot = normalizeRegistryKey(root)
+  const rootWasListed = parentProbe.output
     .split(/\r?\n/u)
     .some((line) => normalizeRegistryKey(line) === normalizedRoot)
-  return { definitive: !rootWasListed, output: '' }
+  return rootWasListed
+    ? { definitive: false, exists: true, output: '' }
+    : { definitive: true, exists: false, output: '' }
+}
+
+function registryTreeProbe(tree, spawn) {
+  return registryKeyProbe(tree.root, spawn, tree.recursive !== false)
 }
 
 export async function collectPreflightFacts(options = {}) {
@@ -545,7 +550,7 @@ export async function collectPreflightFacts(options = {}) {
     }
   }
 
-  const registryAvailability = runProbe('reg.exe', ['query', 'HKCU\\Environment'], spawn)
+  const registryAvailability = registryKeyProbe('HKCU\\Environment', spawn)
   const uninstallTreeProbes = uninstallRegistryTrees().map((tree) => registryTreeProbe(tree, spawn))
   const autostartTreeProbes = autostartRegistryTrees().map((tree) => registryTreeProbe(tree, spawn))
   const installLocationTrees = installLocationRegistryTrees()
@@ -584,8 +589,7 @@ export async function collectPreflightFacts(options = {}) {
       ),
   )
   const registryProbeSucceeded =
-    registryAvailability.available &&
-    registryAvailability.status === 0 &&
+    registryAvailability.definitive &&
     shortcutKnownFolderProbesSucceeded &&
     uninstallTreeProbes.every((probe) => probe.definitive) &&
     installLocationTreeProbes.every((probe) => probe.definitive) &&
@@ -611,7 +615,7 @@ export async function collectPreflightFacts(options = {}) {
     desktopAutostartRegistrationIsAbsent = autostartTreeProbes.every(
       (probe) => !registryOutputHasDesktopAutostart(probe.output),
     )
-    const registryPathValue = registryValue(registryAvailability.stdout, 'Path', env) ?? ''
+    const registryPathValue = registryValue(registryAvailability.output, 'Path', env) ?? ''
     desktopShimPathRegistrationIsAbsent =
       !windowsPathListContains(env.PATH ?? '', shimPath) &&
       !windowsPathListContains(registryPathValue, shimPath)

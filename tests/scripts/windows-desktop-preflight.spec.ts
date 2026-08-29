@@ -515,6 +515,85 @@ describe('Windows packaged-shell preflight policy', () => {
     expect(commonShortcutFacts.knownDesktopStateIsAbsent).toBe(false)
   })
 
+  it('proves registry absence through missing ancestors but rejects an unreadable listed ancestor', async () => {
+    const startupApproved =
+      'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved'
+    const explorer = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer'
+    const missingAncestorFacts = await collectPreflightFacts(
+      successfulCollectorOptions({
+        spawn: (command, arguments_) => {
+          const key = arguments_[1] ?? ''
+          if (command === 'reg.exe' && key === 'HKCU\\Environment') {
+            return { status: 1, stdout: '' }
+          }
+          if (command === 'reg.exe' && key === 'HKCU') {
+            return {
+              status: 0,
+              stdout: 'HKEY_CURRENT_USER\r\nHKEY_CURRENT_USER\\Software\r\n',
+            }
+          }
+          if (
+            command === 'reg.exe' &&
+            (key === startupApproved || key === `${startupApproved}\\Run`)
+          ) {
+            return { status: 1, stdout: '' }
+          }
+          if (command === 'reg.exe' && key === explorer) {
+            return { status: 0, stdout: `${explorer}\r\n` }
+          }
+          return baseSpawn(command, arguments_)
+        },
+      }),
+    )
+    expect(missingAncestorFacts.registryProbeSucceeded).toBe(true)
+    expect(missingAncestorFacts.desktopAutostartRegistrationIsAbsent).toBe(true)
+    expect(missingAncestorFacts.desktopShimPathRegistrationIsAbsent).toBe(true)
+    expect(evaluatePreflightPolicy(missingAncestorFacts).readyForDisposableInstall).toBe(true)
+
+    const registeredShimFacts = await collectPreflightFacts(
+      successfulCollectorOptions({
+        spawn: (command, arguments_) => {
+          const key = arguments_[1] ?? ''
+          if (command === 'reg.exe' && key === 'HKCU\\Environment') {
+            return {
+              status: 0,
+              stdout:
+                '    Path    REG_EXPAND_SZ    C:\\Windows\\System32;%LOCALAPPDATA%\\deepseek-harness\\bin\r\n',
+            }
+          }
+          return baseSpawn(command, arguments_)
+        },
+      }),
+    )
+    expect(registeredShimFacts.registryProbeSucceeded).toBe(true)
+    expect(registeredShimFacts.desktopShimPathRegistrationIsAbsent).toBe(false)
+    expect(evaluatePreflightPolicy(registeredShimFacts).readyForDisposableInstall).toBe(false)
+
+    const unreadableAncestorFacts = await collectPreflightFacts(
+      successfulCollectorOptions({
+        spawn: (command, arguments_) => {
+          const key = arguments_[1] ?? ''
+          if (
+            command === 'reg.exe' &&
+            (key === startupApproved || key === `${startupApproved}\\Run`)
+          ) {
+            return { status: 1, stdout: '' }
+          }
+          if (command === 'reg.exe' && key === explorer) {
+            return {
+              status: 0,
+              stdout: `${explorer}\r\nHKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\r\n`,
+            }
+          }
+          return baseSpawn(command, arguments_)
+        },
+      }),
+    )
+    expect(unreadableAncestorFacts.registryProbeSucceeded).toBe(false)
+    expect(unreadableAncestorFacts.desktopAutostartRegistrationIsAbsent).toBe(false)
+    expect(evaluatePreflightPolicy(unreadableAncestorFacts).readyForDisposableInstall).toBe(false)
+  })
+
   it('finds product shortcuts inside custom nested user and common Start Menu folders', async () => {
     const userPrograms = `${fakeEnvironment.APPDATA}\\Microsoft\\Windows\\Start Menu\\Programs`
     const commonPrograms = `${fakeEnvironment.ProgramData}\\Microsoft\\Windows\\Start Menu\\Programs`
