@@ -1,0 +1,43 @@
+name: Focused improvement proposal
+description: Propose a bounded improvement with its authority, privacy, and verification impact.
+title: "[Proposal]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the user or contributor problem without prescribing a solution first.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Smallest useful outcome
+      description: Define a bounded result and explicitly name what remains out of scope.
+    validations:
+      required: true
+  - type: textarea
+    id: boundary
+    attributes:
+      label: Authority and privacy impact
+      description: Explain whether the proposal changes exported data, credentials, session binding, microphone or playback ownership, transcript promotion, tools, submission, storage, or teardown.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification plan
+      description: Describe the failing-before evidence, regression test, or exact environment needed.
+    validations:
+      required: true
+  - type: checkboxes
+    id: claims
+    attributes:
+      label: Scope check
+      options:
+        - label: I checked existing issues and the current preview limitations before proposing this work.
+          required: true
+        - label: I will not treat an unverified path as stable, marketplace-ready, officially endorsed, or equivalent to continuous live voice.
+          required: true
