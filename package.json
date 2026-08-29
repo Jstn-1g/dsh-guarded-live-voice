@@ -71,11 +71,13 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.client.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "check:scripts": "node --check scripts/check-pack.mjs && node --check scripts/clean.mjs && node --check scripts/smoke-browser-bfcache.mjs && node --check scripts/smoke-browser-unload.mjs && node --check scripts/smoke-harness-fake-qwen.mjs",
     "publint": "publint",
     "pack:check": "node scripts/check-pack.mjs",
+    "smoke:browser:bfcache": "pnpm run build && node scripts/smoke-browser-bfcache.mjs",
     "smoke:browser:unload": "pnpm run build && node scripts/smoke-browser-unload.mjs",
     "smoke:harness:fake-qwen": "node scripts/smoke-harness-fake-qwen.mjs",
-    "check": "pnpm run typecheck && pnpm run test && pnpm run build && pnpm run publint && pnpm run pack:check",
+    "check": "pnpm run typecheck && pnpm run test && pnpm run check:scripts && pnpm run build && pnpm run publint && pnpm run pack:check",
     "prepack": "pnpm run build"
   },
   "dependencies": {

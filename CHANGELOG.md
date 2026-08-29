@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add a controlled, loopback-only Chromium BFCache smoke for idle and active
+  synthetic-audio save/restore paths. This is standalone browser evidence only;
+  exact official DSH Web-profile and packaged Desktop BFCache validation remain
+  open.
 - Prepare the production client dependency graph for the upstream
   `dsh-client-runtime` to `dsh-client-ui-renderer` migration while preserving
   the current verified DSH release-candidate compatibility range. The upstream

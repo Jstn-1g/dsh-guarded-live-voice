@@ -65,3 +65,26 @@ cleanup of the exercised browser resource path only. It does **not** request a
 physical microphone, inspect a browser/OS microphone indicator, use Qwen or a
 credential, compose an official packaged DSH client, or satisfy those still-
 open release gates.
+
+## Controlled Chromium BFCache smoke
+
+`pnpm run smoke:browser:bfcache` builds the current client and serves separate
+idle and active pages plus a same-origin traversal point. A controlled Chromium
+tab visits each case, navigates to that traversal point, and goes Back. The
+fixture accepts a result only when the original document reports both
+`pagehide.persisted = true` and a later `pageshow.persisted = true`; an ordinary
+reload is a failure, not a BFCache pass.
+
+The active case reaches `recording` with a synthetic MediaStream and loopback
+WebSocket before navigation. Its receipt verifies that pagehide returns the
+controller to idle, stops the synthetic track, requests closure of both
+plugin-owned AudioContexts, closes the socket, leaves no tracked timers, emits no
+post-teardown audio, and rejects the old Session, consent, composer binding,
+and buffered-input authority after restoration. Both cases must then start a
+fresh disclosure-bound lifecycle, while an empty commit remains a no-op.
+
+This is controlled evidence for the built client in a minimal slot harness
+and a specific controlled Chromium run. It does **not** request a physical
+microphone, inspect an OS indicator, connect to Qwen, resolve a credential,
+compose an exact official DSH Web profile, exercise packaged Desktop, or by
+itself close the BFCache release gate.
