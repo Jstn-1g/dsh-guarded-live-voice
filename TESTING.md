@@ -204,6 +204,42 @@ published peer set admits `0.1.2-alpha.1` exactly, not later alpha builds; this
 smoke does not prove credential-backed Qwen, physical audio, BFCache, packaged
 Desktop, or broad alpha compatibility.
 
+The test-only IPC-equivalent proof requires clean DSH Live Voice and exact
+`dsh-v0.1.2-alpha.1` (`cd5ef8148158c3a752a658978873241fdf8e2bbc`)
+source checkouts with dependencies installed and the Harness workspace libraries
+built:
+
+```sh
+DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
+  pnpm run smoke:harness:alpha-ipc
+```
+
+It runs the alpha's real Typert generator, generated strict Host/Remote
+descriptors, Host shared Fetch handler and stream gateway, Client Connection and
+Gateway, `SessionStore`, and `TunnelServer` across a Node `MessageChannel`. PCM
+is canonical base64; no binary audio object crosses the Remote seam. It covers
+Host-minted connection capabilities, a real alpha parent/child Session fork and
+same-ID parent replacement under synthetic workspace membership, bounds,
+fail-closed queue pressure, and addressed voice-stream/provider cancellation
+cleanup with a fake, credential-free provider. The 300 x 3,200-byte measurement
+is a sequential burst, not 10 Hz capture, audible latency, or a physical-device
+result.
+
+A local pass always reports `dependencyProvenance: local-unverified` and
+`publishable: false`, even from clean source, because an existing ignored
+dependency tree is not attested. The manual **Exact-alpha IPC-equivalent proof**
+workflow performs fresh frozen-lockfile installs, builds the exact-alpha
+workspace libraries, and pins its actions, Node, pnpm, and upstream commit. Its
+receipt includes an aggregate SHA-256 over selected built exact-alpha
+entrypoints checked by the proof; only that clean workflow may emit
+`publishable: true`.
+Neither result changes the production WebSocket carrier or proves Electron,
+Tauri, packaged Desktop, physical audio, live/credential-backed Qwen, or an
+officially supported DSH seam. The proof also characterizes the exact alpha's
+real `WorkerTunnel` failure on `file://` / null origin. That URL resolution
+blocks reusing the unmodified alpha `WorkerTunnel` there; the intended official
+Desktop carrier and plugin seam remain unconfirmed.
+
 The optional controlled-browser smoke builds the client and prints a loopback
 URL for a synthetic raw-unload check:
 

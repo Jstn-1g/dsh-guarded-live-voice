@@ -51,6 +51,38 @@ Desktop claim. Portable support for every Desktop carrier is not a v0.3 release
 requirement: the current release decision requires credential-backed Qwen and
 at least one packaged-client physical-device smoke.
 
+### Exact-alpha IPC-equivalent feasibility proof
+
+`pnpm run smoke:harness:alpha-ipc` composes the exact
+`dsh-v0.1.2-alpha.1` source generator, generated strict Typert Host/Remote
+descriptors, Host shared Fetch and stream-gateway seams, Client Connection and
+Gateway, and the alpha `TunnelServer` over a Node structured-clone
+`MessageChannel`. A test-only bounded adapter normalizes the page-side URL and
+adds proof-specific body, queue, error, abort, and lifecycle policy; it is not
+the alpha `WorkerTunnel`. The production client, Host gateway, carrier, and
+configuration are unchanged.
+
+The synthetic proof exercises Host-minted connection capabilities,
+cross-connection challenge rejection, the exact alpha `SessionStore` parent/child
+fork and same-ID parent replacement under synthetic workspace membership,
+canonical-base64 PCM, sequence/chunk/turn/queue limits, fail-closed stream-inbox
+overflow, and addressed voice-stream/provider cancellation cleanup. Its provider
+is an in-memory fake labeled `qwen-synthetic-no-credential`; its sequential burst
+is neither a capture cadence nor an audible latency measurement. Local dependency
+trees are unattested and always produce nonpublishable receipts. The manually
+triggered, pinned workflow performs a clean frozen-lockfile installation and
+builds the exact-alpha workspace libraries. Its receipt hashes selected built
+exact-alpha entrypoints checked by the proof; only that workflow may produce a
+publishable receipt.
+
+This is IPC-equivalent feasibility evidence, not official seam confirmation or
+Electron, Tauri, packaged Desktop, physical microphone/speaker, live provider,
+or credential-backed Qwen evidence. The exact alpha's real `WorkerTunnel`
+throws during unary URL resolution on a `file://` null origin before posting a
+frame, which blocks reusing that implementation unchanged. The official
+Desktop carrier and plugin seam remain unconfirmed, and a real packaged-shell
+run must pass before issue #20 can support a Desktop claim.
+
 ## Deterministic Harness composition smoke
 
 `pnpm run smoke:harness:fake-qwen` packs the current plugin, installs that
