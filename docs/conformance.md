@@ -88,3 +88,31 @@ and a specific controlled Chromium run. It does **not** request a physical
 microphone, inspect an OS indicator, connect to Qwen, resolve a credential,
 compose an exact official DSH Web profile, exercise packaged Desktop, or by
 itself close the BFCache release gate.
+
+## Official DSH Web-profile BFCache smoke
+
+`pnpm run smoke:harness:browser:bfcache` requires `DSH_HARNESS_ROOT` to name an
+exact, clean Harness source checkout with its dependencies installed. It
+rebuilds that checkout's Host and Client libraries and Web bundle with the
+official client build values, writes and verifies the upstream client-artifact
+receipt, packs the current plugin, and installs it through the official CLI
+into a disposable shipped `web` profile. A headed stable Chrome then drives the
+actual DSH Web UI through isolated idle and active history traversals.
+
+A pass requires three distinct BFCache signals: an unchanged document boot
+nonce, `pagehide.persisted = true` followed by `pageshow.persisted = true`, and
+a main-frame `BackForwardCacheRestore` event with no
+`Page.backForwardCacheNotUsed` diagnostic. Both official DSH event streams must
+reconnect. The active case must also stop the synthetic track, close the two
+plugin-owned AudioContexts, clear plugin timers, close the original voice
+socket with `1000` / `stopped`, send no browser audio after teardown, preserve
+the original composer draft, and require fresh disclosure and challenges when
+reopening the original Session and then binding a second Session.
+
+The recorded maintainer run used DSH v0.1.1-rc.2 at
+`b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`, Chrome 151, Playwright 1.61.1,
+Windows `10.0.26200`, a deterministic fake provider, and synthetic Web Audio.
+It did **not** use credential-backed Qwen, a physical microphone or speaker, an
+OS device indicator, or packaged Desktop. It supplies exact official
+Web-profile evidence for that environment, but issue #7 remains open for an
+independent reproduction and no other release gate is inferred from it.

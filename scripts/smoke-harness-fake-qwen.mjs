@@ -7,6 +7,7 @@
  */
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { once } from 'node:events'
 import { createServer } from 'node:http'
 import { createRequire } from 'node:module'
@@ -19,12 +20,13 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { release, tmpdir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { WebSocket, WebSocketServer } from 'ws'
 
-const PROFILE = 'dsh-live-voice-fake-qwen-smoke'
+const runBrowserBfcache = process.env.DSH_VOICE_SMOKE_BROWSER_BFCACHE === '1'
+const PROFILE = runBrowserBfcache ? 'web' : 'dsh-live-voice-fake-qwen-smoke'
 const PLUGIN_NAME = 'dsh-live-voice'
 const ROUTE = '/guarded-voice'
 const MODEL = 'qwen-audio-3.0-realtime-plus'
@@ -35,7 +37,7 @@ const EXPECTED_USER_TRANSCRIPT = 'deterministic user transcript'
 const EXPECTED_ASSISTANT_TRANSCRIPT = 'deterministic assistant transcript'
 const allowInstallNetwork = process.env.DSH_VOICE_SMOKE_INSTALL_ONLINE === '1'
 const PROCESS_TIMEOUT_MS = 180_000
-const READY_TIMEOUT_MS = 180_000
+const READY_TIMEOUT_MS = 300_000
 // Official Harness profile startup can continue warming services after the HTTP
 // listener is ready on loaded Windows hosts. Keep the voice turn bounded while
 // allowing those first profile RPCs to settle.
@@ -121,6 +123,7 @@ async function runChild(command, args, { cwd, env, label, timeoutMs = PROCESS_TI
       const diagnostic = [readStdout(), readStderr()].filter(Boolean).join('\n').trim()
       throw new Error(`${label} exited unsuccessfully (${result.code ?? result.signal ?? 'unknown'})${diagnostic === '' ? '' : `\n${diagnostic}`}`)
     }
+    return readStdout().trim()
   } catch (error) {
     await stopChild(child)
     throw error
@@ -155,12 +158,14 @@ function createFakeProvider() {
   let inputBytes = 0
   let outputBytes = 0
   let turnCompleted = false
+  let failureError
   let rejectFailure
   const failure = new Promise((_, reject) => { rejectFailure = reject })
   void failure.catch(() => {})
 
   const fail = error => {
-    rejectFailure(error instanceof Error ? error : new Error('fake provider failed'))
+    failureError = error instanceof Error ? error : new Error('fake provider failed')
+    rejectFailure(failureError)
     for (const client of webSocketServer.clients) client.terminate()
   }
 
@@ -190,7 +195,7 @@ function createFakeProvider() {
         'fake provider received unexpected authorization',
       )
       acceptedConnections += 1
-      assert.equal(acceptedConnections, 1)
+      assert.equal(acceptedConnections <= (runBrowserBfcache ? 2 : 1), true)
       webSocketServer.handleUpgrade(request, socket, head, ws => {
         webSocketServer.emit('connection', ws, request)
       })
@@ -224,8 +229,13 @@ function createFakeProvider() {
         if (event.type === 'input_audio_buffer.append') {
           assert.equal(sawUpdate, true)
           const audio = Buffer.from(event.audio, 'base64')
-          assert.equal(audio.byteLength, EXPECTED_AUDIO.byteLength, 'provider input byte count differed')
-          assert.equal(Buffer.compare(audio, EXPECTED_AUDIO), 0, 'provider input bytes differed')
+          if (runBrowserBfcache) {
+            assert.equal(audio.byteLength > 0, true, 'browser provider input was empty')
+            assert.equal(audio.byteLength % 2, 0, 'browser provider input was not PCM16-aligned')
+          } else {
+            assert.equal(audio.byteLength, EXPECTED_AUDIO.byteLength, 'provider input byte count differed')
+            assert.equal(Buffer.compare(audio, EXPECTED_AUDIO), 0, 'provider input bytes differed')
+          }
           inputBytes += audio.byteLength
           sawAudio = true
           return
@@ -313,6 +323,7 @@ function createFakeProvider() {
 
   return {
     failure,
+    get failureError() { return failureError },
     get acceptedConnections() { return acceptedConnections },
     get providerEvents() { return [...providerEvents] },
     get inputBytes() { return inputBytes },
@@ -463,6 +474,535 @@ async function driveGateway(baseUrl, sessionId, workspaceId) {
   }
 }
 
+async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, testCase) {
+  const webRequire = createRequire(join(harnessRoot, 'apps', 'web', 'package.json'))
+  const { chromium } = webRequire('playwright')
+  const playwrightVersion = webRequire('playwright/package.json').version
+  const awayServer = createServer((_request, response) => {
+    response.writeHead(200, {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'text/html; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+    }).end('<!doctype html><title>DSH BFCache traversal point</title><p>Return to DSH.</p>')
+  })
+  await new Promise((resolveListen, rejectListen) => {
+    awayServer.once('error', rejectListen)
+    awayServer.listen(0, '127.0.0.1', resolveListen)
+  })
+  const awayAddress = awayServer.address()
+  assert.ok(awayAddress !== null && typeof awayAddress !== 'string')
+  const awayUrl = `http://127.0.0.1:${String(awayAddress.port)}`
+
+  let browser
+  try {
+    browser = await chromium.launch({
+      channel: 'chrome',
+      headless: false,
+      ignoreDefaultArgs: ['--disable-back-forward-cache'],
+    })
+    const context = await browser.newContext({ locale: 'en-US' })
+    const page = await context.newPage()
+    const targetOrigin = new URL(baseUrl).origin
+    await page.addInitScript(({ caseName, expectedOrigin, seedSessionId }) => {
+      if (location.origin !== expectedOrigin) return
+      localStorage.setItem('dsh.sessions.current', JSON.stringify({ sessionId: seedSessionId }))
+      const state = {
+        audioFramesSent: 0,
+        audioFramesSentAfterTeardown: 0,
+        bootNonce: crypto.randomUUID(),
+        case: caseName,
+        fixtureAudioCloseCalls: 0,
+        mediaRequests: 0,
+        ownedAudioCloseCallsBeforeRestore: 0,
+        ownedAudioStatesAfterRestore: [],
+        pagehidePersisted: null,
+        pageshowPersisted: [],
+        phaseBeforeHide: null,
+        pluginTimersAfterCleanup: null,
+        restored: false,
+        socketRecords: [],
+        trackStopCallsBeforeRestore: 0,
+        trackStatesAfterCleanup: [],
+      }
+      window.__dshVoiceOfficialBfcache = state
+      window.__dshVoiceOfficialOwnedAudioContexts = []
+      window.__dshVoiceOfficialTracks = []
+      window.__dshVoiceOfficialTimerHandles = new Set()
+
+      const nativeSetTimeout = window.setTimeout.bind(window)
+      const nativeClearTimeout = window.clearTimeout.bind(window)
+      window.setTimeout = (handler, delay, ...args) => {
+        const stack = new Error().stack ?? ''
+        if (!stack.includes('/plugins/dsh-live-voice/client.js')) {
+          return nativeSetTimeout(handler, delay, ...args)
+        }
+        let timer
+        const wrapped = typeof handler === 'function'
+          ? (...callbackArgs) => {
+              window.__dshVoiceOfficialTimerHandles.delete(timer)
+              return handler(...callbackArgs)
+            }
+          : handler
+        timer = nativeSetTimeout(wrapped, delay, ...args)
+        window.__dshVoiceOfficialTimerHandles.add(timer)
+        return timer
+      }
+      window.clearTimeout = timer => {
+        window.__dshVoiceOfficialTimerHandles.delete(timer)
+        return nativeClearTimeout(timer)
+      }
+
+      const NativeWebSocket = window.WebSocket
+      class TrackedWebSocket extends NativeWebSocket {
+        constructor(address, protocols) {
+          if (protocols === undefined) super(address)
+          else super(address, protocols)
+          const path = new URL(this.url).pathname
+          const kind = path === '/guarded-voice'
+            ? 'voice'
+            : path === '/api/events.mux'
+              ? 'events.mux'
+              : path === '/api/events.host' ? 'events.host' : 'other'
+          const record = {
+            afterRestore: state.restored,
+            binaryFrames: 0,
+            challenges: [],
+            closeCalls: [],
+            closeEvents: [],
+            controls: [],
+            kind,
+            openEvents: 0,
+            path,
+          }
+          this.__dshVoiceSocketRecord = record
+          state.socketRecords.push(record)
+          this.addEventListener('open', () => { record.openEvents += 1 })
+          this.addEventListener('close', event => {
+            record.closeEvents.push({
+              afterRestore: state.restored,
+              code: event.code,
+              reason: event.reason,
+            })
+          })
+          this.addEventListener('message', event => {
+            if (record.kind !== 'voice' || typeof event.data !== 'string') return
+            try {
+              const control = JSON.parse(event.data)
+              if (control?.type === 'consent.required' && typeof control.challenge === 'string') {
+                record.challenges.push(control.challenge)
+              }
+            } catch {}
+          })
+        }
+
+        send(data) {
+          const record = this.__dshVoiceSocketRecord
+          if (record.kind === 'voice') {
+            if (typeof data === 'string') {
+              try { record.controls.push(JSON.parse(data)) } catch {}
+            } else {
+              record.binaryFrames += 1
+              state.audioFramesSent += 1
+              if (record.closeCalls.some(call => call.afterRestore === false)) {
+                state.audioFramesSentAfterTeardown += 1
+              }
+            }
+          }
+          return super.send(data)
+        }
+
+        close(code, reason) {
+          this.__dshVoiceSocketRecord.closeCalls.push({
+            afterRestore: state.restored,
+            code: code ?? null,
+            reason: reason ?? '',
+          })
+          return super.close(code, reason)
+        }
+      }
+      window.WebSocket = TrackedWebSocket
+
+      const NativeAudioContext = window.AudioContext || window.webkitAudioContext
+      if (NativeAudioContext === undefined) throw new Error('AudioContext is unavailable')
+      const fixtureContexts = new WeakSet()
+      const fixtureTracks = new WeakMap()
+      const nativeClose = NativeAudioContext.prototype.close
+      NativeAudioContext.prototype.close = function (...args) {
+        if (fixtureContexts.has(this)) state.fixtureAudioCloseCalls += 1
+        else if (!state.restored) state.ownedAudioCloseCallsBeforeRestore += 1
+        return nativeClose.apply(this, args)
+      }
+      class TrackedAudioContext extends NativeAudioContext {
+        constructor(...args) {
+          super(...args)
+          window.__dshVoiceOfficialOwnedAudioContexts.push(this)
+        }
+      }
+      window.AudioContext = TrackedAudioContext
+      if (window.webkitAudioContext !== undefined) window.webkitAudioContext = TrackedAudioContext
+
+      const nativeTrackStop = MediaStreamTrack.prototype.stop
+      MediaStreamTrack.prototype.stop = function (...args) {
+        const source = fixtureTracks.get(this)
+        if (source !== undefined) {
+          fixtureTracks.delete(this)
+          if (!state.restored) state.trackStopCallsBeforeRestore += 1
+          try { source.oscillator.stop() } catch {}
+          void source.context.close()
+        }
+        return nativeTrackStop.apply(this, args)
+      }
+
+      const mediaDevices = navigator.mediaDevices
+      if (mediaDevices === undefined) throw new Error('MediaDevices is unavailable')
+      Object.defineProperty(mediaDevices, 'getUserMedia', {
+        configurable: true,
+        value: async () => {
+          state.mediaRequests += 1
+          const context = new NativeAudioContext()
+          fixtureContexts.add(context)
+          const oscillator = context.createOscillator()
+          const destination = context.createMediaStreamDestination()
+          oscillator.connect(destination)
+          oscillator.start()
+          await context.resume()
+          for (const track of destination.stream.getTracks()) {
+            fixtureTracks.set(track, { context, oscillator })
+            window.__dshVoiceOfficialTracks.push(track)
+          }
+          return destination.stream
+        },
+      })
+
+      addEventListener('pagehide', event => {
+        state.pagehidePersisted = event.persisted
+        state.phaseBeforeHide = document.querySelector(
+          'button[aria-label="Close DSH Live Voice"], button[aria-label="Open DSH Live Voice"]',
+        )?.dataset.state ?? null
+      })
+      addEventListener('pageshow', event => {
+        state.pageshowPersisted.push(event.persisted)
+        if (event.persisted) state.restored = true
+      })
+    }, { caseName: testCase, expectedOrigin: targetOrigin, seedSessionId: sessionId })
+
+    const cdp = await context.newCDPSession(page)
+    await cdp.send('Page.enable')
+    const bfcacheNotUsed = []
+    cdp.on('Page.backForwardCacheNotUsed', event => { bfcacheNotUsed.push(event) })
+    const navigationTypes = []
+    cdp.on('Page.frameNavigated', event => {
+      if (event.frame.parentId === undefined) navigationTypes.push(event.type ?? 'Navigation')
+    })
+    const pageErrors = []
+    page.on('pageerror', error => { pageErrors.push(error.message) })
+
+    await page.goto(baseUrl, { waitUntil: 'load', timeout: READY_TIMEOUT_MS })
+    const voiceControl = page.getByRole('button', { name: 'Open DSH Live Voice' })
+    await voiceControl.waitFor({ timeout: TURN_TIMEOUT_MS })
+    const welcomeContinue = page.getByRole('dialog', { name: 'Internal Testing Notice' })
+      .getByRole('button', { name: 'Continue', exact: true })
+    await welcomeContinue.waitFor({ timeout: 10_000 }).catch(() => {})
+    if (await welcomeContinue.isVisible()) await welcomeContinue.click()
+    const configureLater = page.getByRole('dialog', { name: 'Add an API key to get started' })
+      .getByRole('button', { name: 'Configure later', exact: true })
+    await configureLater.waitFor({ timeout: 10_000 }).catch(() => {})
+    if (await configureLater.isVisible()) await configureLater.click()
+
+    await page.waitForFunction(() => {
+      const records = window.__dshVoiceOfficialBfcache?.socketRecords ?? []
+      return records.some(record => record.kind === 'events.mux' && record.openEvents > 0)
+        && records.some(record => record.kind === 'events.host' && record.openEvents > 0)
+    }, undefined, { timeout: TURN_TIMEOUT_MS })
+    await page.evaluate(() => {
+      addEventListener('pagehide', () => {
+        const state = window.__dshVoiceOfficialBfcache
+        state.pluginTimersAfterCleanup = window.__dshVoiceOfficialTimerHandles.size
+        state.trackStatesAfterCleanup = window.__dshVoiceOfficialTracks.map(track => track.readyState)
+      })
+    })
+    const bootNonce = await page.evaluate(() => window.__dshVoiceOfficialBfcache.bootNonce)
+    let originalDraft = null
+    if (testCase === 'active') {
+      const composer = page.locator('[data-input-scroll] textarea')
+      originalDraft = 'Official BFCache draft sentinel'
+      await composer.fill(originalDraft)
+      await voiceControl.click()
+      await page.getByRole('heading', { name: 'Before voice is enabled', level: 3 }).waitFor({
+        timeout: TURN_TIMEOUT_MS,
+      })
+      await page.getByRole('button', { name: 'Continue setup', exact: true }).click()
+      const recordControl = page.getByRole('button', { name: 'Start recording', exact: true })
+      await recordControl.waitFor({ timeout: TURN_TIMEOUT_MS })
+      await recordControl.click()
+      await page.getByRole('status').filter({ hasText: 'Recording one bounded turn' }).waitFor({
+        timeout: TURN_TIMEOUT_MS,
+      })
+      await page.waitForFunction(
+        () => window.__dshVoiceOfficialBfcache?.audioFramesSent > 0,
+        undefined,
+        { timeout: TURN_TIMEOUT_MS },
+      )
+    } else {
+      assert.equal(testCase, 'idle')
+    }
+
+    await page.goto(awayUrl, { waitUntil: 'load', timeout: TURN_TIMEOUT_MS })
+    let restoredSessionId
+    if (testCase === 'active') {
+      const restoredSession = await rpc(baseUrl, 'session.create', { workspaceId }, 101)
+      restoredSessionId = restoredSession.sessionId
+    }
+    await page.goBack({ waitUntil: 'commit', timeout: TURN_TIMEOUT_MS })
+    await voiceControl.waitFor({ timeout: TURN_TIMEOUT_MS })
+    try {
+      await page.waitForFunction(() => {
+        const state = window.__dshVoiceOfficialBfcache
+        if (state?.pageshowPersisted.at(-1) !== true) return false
+        const records = state.socketRecords
+        return records.some(record => (
+          record.kind === 'events.mux' && record.afterRestore && record.openEvents > 0
+        )) && records.some(record => (
+          record.kind === 'events.host' && record.afterRestore && record.openEvents > 0
+        ))
+      }, undefined, { timeout: TURN_TIMEOUT_MS })
+    } catch (error) {
+      const pageState = await page.evaluate(() => {
+        const state = window.__dshVoiceOfficialBfcache
+        return state === undefined
+          ? null
+          : {
+              bootNonce: state.bootNonce,
+              pagehidePersisted: state.pagehidePersisted,
+              pageshowPersisted: state.pageshowPersisted,
+              socketKinds: state.socketRecords.map(record => record.kind),
+            }
+      }).catch(() => null)
+      const reasons = bfcacheNotUsed.map(event => ({
+        explanations: event.notRestoredExplanations,
+        tree: event.notRestoredExplanationsTree,
+      }))
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(
+        `${testCase} official DSH BFCache restore did not settle: ${message}\n${JSON.stringify({
+          navigationTypes,
+          pageState,
+          reasons,
+        })}`,
+        { cause: error },
+      )
+    }
+
+    await page.evaluate(() => {
+      const state = window.__dshVoiceOfficialBfcache
+      state.ownedAudioStatesAfterRestore = window.__dshVoiceOfficialOwnedAudioContexts
+        .map(context => context.state)
+      state.trackStatesAfterCleanup = window.__dshVoiceOfficialTracks.map(track => track.readyState)
+    })
+    const state = await page.evaluate(() => structuredClone(window.__dshVoiceOfficialBfcache))
+    assert.equal(state.bootNonce, bootNonce, 'official DSH document reloaded instead of restoring')
+    assert.equal(state.pagehidePersisted, true)
+    assert.deepEqual(state.pageshowPersisted, [false, true])
+    assert.equal(state.phaseBeforeHide, testCase === 'active' ? 'recording' : 'idle')
+    assert.equal(
+      navigationTypes.includes('BackForwardCacheRestore'),
+      true,
+      `official DSH did not emit a BFCache restore navigation: ${JSON.stringify(bfcacheNotUsed)}`,
+    )
+    assert.equal(bfcacheNotUsed.length, 0, 'official DSH emitted a BFCache-not-used diagnostic')
+    assert.deepEqual(pageErrors, [])
+
+    const voiceSockets = state.socketRecords.filter(record => record.kind === 'voice')
+    for (const kind of ['events.mux', 'events.host']) {
+      const sockets = state.socketRecords.filter(record => record.kind === kind)
+      assert.equal(sockets.some(record => !record.afterRestore && record.openEvents > 0), true)
+      assert.equal(
+        sockets.some(record => record.afterRestore && record.openEvents > 0),
+        true,
+        `official DSH ${kind} did not open a post-restore replacement`,
+      )
+    }
+
+    let activeReceipt
+    if (testCase === 'active') {
+      assert.equal(state.mediaRequests, 1)
+      assert.equal(state.audioFramesSent > 0, true, 'official DSH browser sent no synthetic audio')
+      assert.equal(state.audioFramesSentAfterTeardown, 0)
+      assert.equal(state.trackStopCallsBeforeRestore, 1)
+      assert.deepEqual(state.trackStatesAfterCleanup, ['ended'])
+      assert.equal(state.ownedAudioCloseCallsBeforeRestore, 2)
+      assert.deepEqual(state.ownedAudioStatesAfterRestore, ['closed', 'closed'])
+      assert.equal(state.pluginTimersAfterCleanup, 0)
+      assert.equal(voiceSockets.length, 1, 'official DSH restore reopened a stale Voice socket')
+      assert.deepEqual(voiceSockets[0].closeCalls, [
+        { afterRestore: false, code: 1000, reason: 'stopped' },
+      ])
+      assert.equal(voiceSockets[0].closeEvents.length, 1)
+      assert.deepEqual({
+        code: voiceSockets[0].closeEvents[0].code,
+        reason: voiceSockets[0].closeEvents[0].reason,
+      }, {
+        code: 1000,
+        reason: 'stopped',
+      })
+      assert.equal(await page.locator('[data-input-scroll] textarea').inputValue(), originalDraft)
+
+      const providerConnectionsBeforeSameSession = fakeProvider.acceptedConnections
+      await voiceControl.click()
+      await page.getByRole('heading', { name: 'Before voice is enabled', level: 3 }).waitFor({
+        timeout: TURN_TIMEOUT_MS,
+      })
+      assert.equal(fakeProvider.acceptedConnections, providerConnectionsBeforeSameSession)
+      await page.waitForFunction((expectedSessionId) => {
+        const sockets = window.__dshVoiceOfficialBfcache.socketRecords
+          .filter(record => record.kind === 'voice')
+        const fresh = sockets.at(-1)
+        return sockets.length === 2
+          && fresh.challenges.length === 1
+          && fresh.controls.some(control => (
+            control?.type === 'bind' && control.sessionId === expectedSessionId
+          ))
+      }, sessionId, { timeout: TURN_TIMEOUT_MS })
+      const sameSessionState = await page.evaluate(() => (
+        structuredClone(window.__dshVoiceOfficialBfcache)
+      ))
+      const sameSessionVoice = sameSessionState.socketRecords
+        .filter(record => record.kind === 'voice').at(-1)
+      assert.notEqual(sameSessionVoice.challenges[0], voiceSockets[0].challenges[0])
+      assert.equal(sameSessionVoice.binaryFrames, 0)
+      await page.getByRole('button', { name: 'Close DSH Live Voice', exact: true }).first().click()
+      await voiceControl.waitFor({ timeout: TURN_TIMEOUT_MS })
+      await page.waitForFunction(() => {
+        const sockets = window.__dshVoiceOfficialBfcache.socketRecords
+          .filter(record => record.kind === 'voice')
+        return sockets.length === 2
+          && sockets[1].closeCalls.length === 1
+          && sockets[1].closeEvents.length === 1
+      }, undefined, { timeout: TURN_TIMEOUT_MS })
+
+      assert.ok(restoredSessionId !== undefined)
+      const workspaceRow = page.locator('[role="treeitem"][aria-expanded]').filter({ hasText: 'workspace' }).first()
+      await workspaceRow.waitFor({ timeout: TURN_TIMEOUT_MS })
+      await workspaceRow.hover()
+      await page.getByRole('button', { name: 'New session in workspace', exact: true }).click()
+      await page.waitForFunction((expectedSessionId) => {
+        const current = localStorage.getItem('dsh.sessions.current')
+        return current !== null && JSON.parse(current).sessionId === expectedSessionId
+      }, restoredSessionId, { timeout: TURN_TIMEOUT_MS })
+      const providerConnectionsBeforeFreshConsent = fakeProvider.acceptedConnections
+      const providerInputBeforeFreshConsent = fakeProvider.inputBytes
+      await voiceControl.click()
+      await page.getByRole('heading', { name: 'Before voice is enabled', level: 3 }).waitFor({
+        timeout: TURN_TIMEOUT_MS,
+      })
+      assert.equal(fakeProvider.acceptedConnections, providerConnectionsBeforeFreshConsent)
+      await page.waitForFunction((expectedSessionId) => {
+        const sockets = window.__dshVoiceOfficialBfcache.socketRecords
+          .filter(record => record.kind === 'voice')
+        const fresh = sockets.at(-1)
+        return sockets.length === 3
+          && fresh.challenges.length === 1
+          && fresh.controls.some(control => (
+            control?.type === 'bind' && control.sessionId === expectedSessionId
+          ))
+      }, restoredSessionId, { timeout: TURN_TIMEOUT_MS })
+      const beforeFreshConsent = await page.evaluate(() => (
+        structuredClone(window.__dshVoiceOfficialBfcache)
+      ))
+      const freshVoiceBeforeConsent = beforeFreshConsent.socketRecords
+        .filter(record => record.kind === 'voice').at(-1)
+      assert.notEqual(freshVoiceBeforeConsent.challenges[0], voiceSockets[0].challenges[0])
+      assert.notEqual(freshVoiceBeforeConsent.challenges[0], sameSessionVoice.challenges[0])
+      assert.equal(freshVoiceBeforeConsent.binaryFrames, 0)
+
+      await page.getByRole('button', { name: 'Continue setup', exact: true }).click()
+      await page.getByRole('button', { name: 'Start recording', exact: true }).waitFor({
+        timeout: TURN_TIMEOUT_MS,
+      })
+      await waitFor(
+        () => fakeProvider.acceptedConnections === providerConnectionsBeforeFreshConsent + 1,
+        TURN_TIMEOUT_MS,
+        'fresh disclosure provider connection',
+      )
+      assert.equal(fakeProvider.inputBytes, providerInputBeforeFreshConsent)
+      await page.getByRole('button', { name: 'Close DSH Live Voice', exact: true }).first().click()
+      await voiceControl.waitFor({ timeout: TURN_TIMEOUT_MS })
+      await waitFor(() => fakeProvider.clientCount === 0, TURN_TIMEOUT_MS, 'fresh provider disposal')
+      const finalState = await page.evaluate(() => structuredClone(window.__dshVoiceOfficialBfcache))
+      const finalVoiceSockets = finalState.socketRecords.filter(record => record.kind === 'voice')
+      assert.equal(finalVoiceSockets.length, 3)
+      assert.deepEqual(finalVoiceSockets[1].closeCalls, [
+        { afterRestore: true, code: 1000, reason: 'stopped' },
+      ])
+      assert.deepEqual(finalVoiceSockets[1].closeEvents, [
+        { afterRestore: true, code: 1000, reason: 'stopped' },
+      ])
+      assert.equal(finalVoiceSockets[2].binaryFrames, 0)
+      assert.deepEqual(finalVoiceSockets[2].closeCalls, [
+        { afterRestore: true, code: 1000, reason: 'stopped' },
+      ])
+      activeReceipt = {
+        audioFramesSent: state.audioFramesSent,
+        freshChallengeUnique: true,
+        freshDisclosureRequired: true,
+        freshSessionBound: true,
+        ownedAudioContextsCloseRequested: state.ownedAudioCloseCallsBeforeRestore,
+        originalComposerDraftPreserved: true,
+        postTeardownBrowserAudioSends: state.audioFramesSentAfterTeardown,
+        sameSessionChallengeUnique: true,
+        sameSessionFreshDisclosureRequired: true,
+        syntheticTrackStopped: true,
+        timersAfterCleanup: state.pluginTimersAfterCleanup,
+        voiceSocketClose: voiceSockets[0].closeCalls[0],
+      }
+    } else {
+      assert.equal(state.mediaRequests, 0)
+      assert.equal(state.audioFramesSent, 0)
+      assert.equal(state.trackStopCallsBeforeRestore, 0)
+      assert.deepEqual(state.trackStatesAfterCleanup, [])
+      assert.equal(state.ownedAudioCloseCallsBeforeRestore, 0)
+      assert.deepEqual(state.ownedAudioStatesAfterRestore, [])
+      assert.equal(state.pluginTimersAfterCleanup, 0)
+      assert.equal(voiceSockets.length, 0)
+      assert.equal(fakeProvider.acceptedConnections, 0)
+    }
+
+    await context.close()
+    return {
+      browserVersion: browser.version(),
+      case: testCase,
+      dshEventStreamsReconnected: true,
+      navigationTypes,
+      notRestoredReasonCount: bfcacheNotUsed.length,
+      pagehidePersisted: state.pagehidePersisted,
+      pageshowPersisted: state.pageshowPersisted,
+      playwrightVersion,
+      ...(activeReceipt === undefined ? { remainedIdle: true } : activeReceipt),
+    }
+  } finally {
+    if (browser !== undefined) await browser.close().catch(() => {})
+    if (awayServer.listening) {
+      const closed = once(awayServer, 'close')
+      awayServer.close()
+      awayServer.closeAllConnections()
+      await withTimeout(closed, STOP_TIMEOUT_MS, 'BFCache traversal server shutdown').catch(() => {})
+    }
+  }
+}
+
+async function driveOfficialBrowserBfcache(baseUrl, sessionId, workspaceId) {
+  const idle = await driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 'idle')
+  const active = await driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 'active')
+  assert.equal(idle.browserVersion, active.browserVersion)
+  assert.equal(idle.playwrightVersion, active.playwrightVersion)
+  return {
+    active,
+    browserVersion: active.browserVersion,
+    idle,
+    playwrightVersion: active.playwrightVersion,
+  }
+}
+
 async function startHarness(args, environment) {
   const child = spawn(process.execPath, args, {
     cwd: temporaryRoot,
@@ -477,11 +1017,11 @@ async function startHarness(args, environment) {
     resolveReady = resolveReadiness
     rejectReady = rejectReadiness
   })
-  boundedCapture(child.stdout, output => {
+  const readStdout = boundedCapture(child.stdout, output => {
     const match = /http:\/\/127\.0\.0\.1:\d+/u.exec(output)
     if (match !== null) resolveReady(match[0])
   })
-  boundedCapture(child.stderr)
+  const readStderr = boundedCapture(child.stderr)
   child.once('error', rejectReady)
   child.once('exit', (code, signal) => {
     rejectReady(new Error(`Harness exited before readiness (${code ?? signal ?? 'unknown'})`))
@@ -492,13 +1032,15 @@ async function startHarness(args, environment) {
   } catch (error) {
     await stopChild(child)
     activeChildren.delete(child)
-    throw error
+    const diagnostic = [readStdout(), readStderr()].filter(Boolean).join('\n').trim()
+    if (diagnostic === '') throw error
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`${message}\n${diagnostic}`, { cause: error })
   }
 }
 
 async function main() {
   await access(cliBin)
-  await access(webIndex)
   const harnessRequire = createRequire(join(harnessRoot, 'package.json'))
   const tsxImport = pathToFileURL(harnessRequire.resolve('tsx/esm')).href
   const realWsEntry = createRequire(import.meta.url).resolve('ws')
@@ -526,6 +1068,124 @@ async function main() {
     npm_config_userconfig: userConfig,
     NPM_CONFIG_USERCONFIG: userConfig,
   })
+  let dshClientArtifacts
+  let dshCommit
+  let dshVersion
+  let dshWebIndexSha256
+  let dshWorktreeDirty
+  let pluginCommit
+  let pluginWorktreeDirty
+  if (runBrowserBfcache) {
+    const tscEntry = harnessRequire.resolve('typescript/bin/tsc')
+    const tsdownPackagePath = harnessRequire.resolve('tsdown/package.json')
+    const tsdownPackage = JSON.parse(await readFile(tsdownPackagePath, 'utf8'))
+    const tsdownEntry = resolve(dirname(tsdownPackagePath), tsdownPackage.bin.tsdown)
+    const webRequire = createRequire(join(harnessRoot, 'apps', 'web', 'package.json'))
+    const vitePackagePath = webRequire.resolve('vite/package.json')
+    const vitePackage = JSON.parse(await readFile(vitePackagePath, 'utf8'))
+    const viteEntry = resolve(dirname(vitePackagePath), vitePackage.bin.vite)
+    dshVersion = JSON.parse(await readFile(join(harnessRoot, 'package.json'), 'utf8')).version
+    dshCommit = await runChild('git', ['rev-parse', 'HEAD'], {
+      cwd: harnessRoot,
+      env: baseEnvironment,
+      label: 'Harness git identity',
+    })
+    dshWorktreeDirty = (await runChild('git', ['status', '--porcelain'], {
+      cwd: harnessRoot,
+      env: baseEnvironment,
+      label: 'Harness worktree identity',
+    })) !== ''
+    assert.equal(dshWorktreeDirty, false, 'official browser smoke requires a clean Harness source tree')
+    const officialBuildEnvironment = {
+      ...baseEnvironment,
+      DSH_CLIENT_BUILD_PROFILE: 'official',
+      DSH_CLIENT_COMMIT_HASH: dshCommit.slice(0, 7).toLowerCase(),
+      DSH_CLIENT_TITLE: 'DeepSeek Harness',
+    }
+    await runChild(process.execPath, [tscEntry, '-b', 'tsconfig.host.json'], {
+      cwd: harnessRoot,
+      env: officialBuildEnvironment,
+      label: 'exact official Harness Host TypeScript build',
+      timeoutMs: 600_000,
+    })
+    await runChild(process.execPath, [tsdownEntry, '--env.DSH_BUILD_FACE', 'host'], {
+      cwd: harnessRoot,
+      env: officialBuildEnvironment,
+      label: 'exact official Harness Host bundle build',
+      timeoutMs: 600_000,
+    })
+    await runChild(process.execPath, [tscEntry, '-b', 'tsconfig.client.json'], {
+      cwd: harnessRoot,
+      env: officialBuildEnvironment,
+      label: 'exact official Harness Client TypeScript build',
+      timeoutMs: 600_000,
+    })
+    await runChild(process.execPath, [tsdownEntry, '--env.DSH_BUILD_FACE', 'client'], {
+      cwd: harnessRoot,
+      env: officialBuildEnvironment,
+      label: 'exact official Harness Client bundle build',
+      timeoutMs: 600_000,
+    })
+    await runChild(process.execPath, [viteEntry, 'build'], {
+      cwd: join(harnessRoot, 'apps', 'web'),
+      env: officialBuildEnvironment,
+      label: 'exact official Harness Web bundle build',
+      timeoutMs: 600_000,
+    })
+    const buildRecordModuleUrl = pathToFileURL(join(
+      harnessRoot,
+      'scripts',
+      'client-build-environment.ts',
+    )).href
+    const writeBuildRecord = [
+      `import { writeClientBuildRecord } from ${JSON.stringify(buildRecordModuleUrl)}`,
+      `writeClientBuildRecord(${JSON.stringify(harnessRoot)}, Object.fromEntries(Object.entries(process.env).filter(([name]) => name.startsWith('DSH_CLIENT_'))))`,
+    ].join(';')
+    await runChild(process.execPath, [
+      '--import',
+      tsxImport,
+      '--input-type=module',
+      '--eval',
+      writeBuildRecord,
+    ], {
+      cwd: harnessRoot,
+      env: officialBuildEnvironment,
+      label: 'exact official Harness client build receipt',
+    })
+    const buildRecord = JSON.parse(await readFile(join(
+      harnessRoot,
+      '.dsh-build',
+      'client-build-environment.json',
+    ), 'utf8'))
+    assert.deepEqual(buildRecord.environment, {
+      DSH_CLIENT_BUILD_PROFILE: 'official',
+      DSH_CLIENT_COMMIT_HASH: dshCommit.slice(0, 7).toLowerCase(),
+      DSH_CLIENT_TITLE: 'DeepSeek Harness',
+    })
+    assert.equal(Number.isSafeInteger(buildRecord.artifacts?.fileCount), true)
+    assert.equal(buildRecord.artifacts.fileCount > 0, true)
+    assert.match(buildRecord.artifacts.sha256, /^[0-9a-f]{64}$/u)
+    dshClientArtifacts = buildRecord.artifacts
+    assert.equal((await runChild('git', ['status', '--porcelain'], {
+      cwd: harnessRoot,
+      env: baseEnvironment,
+      label: 'post-build Harness worktree identity',
+    })) === '', true, 'official Harness build changed tracked source')
+    dshWebIndexSha256 = createHash('sha256')
+      .update(await readFile(webIndex))
+      .digest('hex')
+    pluginCommit = await runChild('git', ['rev-parse', 'HEAD'], {
+      cwd: pluginRoot,
+      env: baseEnvironment,
+      label: 'plugin git identity',
+    })
+    pluginWorktreeDirty = (await runChild('git', ['status', '--porcelain'], {
+      cwd: pluginRoot,
+      env: baseEnvironment,
+      label: 'plugin worktree identity',
+    })) !== ''
+  }
+  await access(webIndex)
 
   await runChild(process.execPath, [
     packageManagerEntry,
@@ -540,6 +1200,9 @@ async function main() {
   const tarballs = (await readdir(packDir)).filter(name => name.endsWith('.tgz'))
   assert.equal(tarballs.length, 1, 'plugin pack must produce exactly one tarball')
   const tarball = join(packDir, tarballs[0])
+  const pluginTarballSha256 = runBrowserBfcache
+    ? createHash('sha256').update(await readFile(tarball)).digest('hex')
+    : undefined
 
   await runChild(process.execPath, [
     '--import',
@@ -563,7 +1226,12 @@ async function main() {
   const bundles = profileManifest.dsh?.profile?.bundles
   assert.ok(Array.isArray(bundles), 'official CLI did not create a profile bundle list')
   assert.equal(bundles.includes(PLUGIN_NAME), true, 'official CLI did not activate the packed plugin bundle')
-  if (!bundles.includes('@deepseek-ai/dsh-web-app')) {
+  if (runBrowserBfcache) {
+    assert.deepEqual(bundles.slice(0, 2), [
+      '@deepseek-ai/dsh-base',
+      '@deepseek-ai/dsh-web-app',
+    ], 'official CLI did not initialize the shipped Web profile template')
+  } else if (!bundles.includes('@deepseek-ai/dsh-web-app')) {
     bundles.splice(bundles.indexOf(PLUGIN_NAME), 0, '@deepseek-ai/dsh-web-app')
   }
   assert.ok(bundles.indexOf('@deepseek-ai/dsh-web-app') < bundles.indexOf(PLUGIN_NAME))
@@ -693,6 +1361,51 @@ export { WebSocketServer }
   const workspace = await rpc(harness.baseUrl, 'workspace.create', { path: workspaceDir }, 1)
   const workspaceId = workspace.workspace.workspaceId
   const session = await rpc(harness.baseUrl, 'session.create', { workspaceId }, 2)
+
+  if (runBrowserBfcache) {
+    const browserBfcache = await driveOfficialBrowserBfcache(
+      harness.baseUrl,
+      session.sessionId,
+      workspaceId,
+    )
+    assert.equal(fakeProvider.acceptedConnections, 2)
+    assert.equal(fakeProvider.providerEvents[0], 'session.update')
+    assert.equal(fakeProvider.providerEvents.includes('input_audio_buffer.append'), true)
+    assert.equal(fakeProvider.providerEvents.includes('input_audio_buffer.commit'), false)
+    assert.equal(fakeProvider.turnCompleted, false)
+    assert.equal(fakeProvider.inputBytes > 0, true)
+    await waitFor(() => fakeProvider.clientCount === 0, TURN_TIMEOUT_MS, 'browser provider socket disposal')
+    assert.equal(fakeProvider.failureError, undefined)
+    process.stdout.write(`${JSON.stringify({
+      rootStatus: rootResponse.status,
+      clientStatus: clientResponse.status,
+      upgradeOnlyStatus: upgradeOnlyResponse.status,
+      workspaceBound: workspaceId !== undefined,
+      sessionBound: session.sessionId !== undefined,
+      dshBuiltFromCleanSource: !dshWorktreeDirty,
+      dshClientArtifacts,
+      dshCommit,
+      dshVersion,
+      dshWebIndexSha256,
+      dshWorktreeDirty,
+      officialDshWebProfile: true,
+      bfcacheSaveRestore: true,
+      ...browserBfcache,
+      os: { platform: process.platform, release: release() },
+      pluginCommit,
+      pluginTarballSha256,
+      pluginWorktreeDirty,
+      providerInputBytes: fakeProvider.inputBytes,
+      providerSocketDisposed: true,
+      credentialBackedQwen: false,
+      liveProvider: false,
+      physicalMicrophone: false,
+      physicalSpeaker: false,
+      packagedDesktop: false,
+    })}\n`)
+    return
+  }
+
   const gateway = await driveGateway(harness.baseUrl, session.sessionId, workspaceId)
 
   assert.deepEqual(fakeProvider.providerEvents, [
@@ -705,6 +1418,7 @@ export { WebSocketServer }
   assert.equal(fakeProvider.inputBytes, EXPECTED_AUDIO.byteLength)
   assert.equal(fakeProvider.outputBytes, EXPECTED_AUDIO.byteLength)
   await waitFor(() => fakeProvider.clientCount === 0, TURN_TIMEOUT_MS, 'provider socket disposal')
+  assert.equal(fakeProvider.failureError, undefined)
 
   process.stdout.write(`${JSON.stringify({
     rootStatus: rootResponse.status,
