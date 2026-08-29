@@ -18,10 +18,11 @@ proven.
 
 ## Current status
 
-Unless stated otherwise, this section describes current `main` at `4eee616`.
-The immutable public `v0.3.0-preview.1` artifact is pinned to `fdeb7c8` and
-predates the official-Web BFCache and exact-alpha authentication merges. Bind
-every result to the exact revision that was tested.
+Unless stated otherwise, this section describes the current `main` branch, not
+the published preview artifact. The immutable public `v0.3.0-preview.1` release
+is pinned to `fdeb7c8` and predates the official-Web BFCache and exact-alpha
+authentication merges. Bind every result to the exact revision that was
+tested.
 
 ### Runtime support
 
