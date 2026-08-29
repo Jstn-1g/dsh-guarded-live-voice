@@ -49,8 +49,34 @@ The current design has an ordered Host/browser control path:
     Conflict, cancellation, or incomplete transcript leaves the composer
     untouched; no code path calls submit.
 
+## Runtime carrier scope
+
+The current registered path is a served-Web implementation. The Host publishes
+its route through `webserver/index-inject` and owns an exact
+`ctx.webServer.registerUpgrade` route. The browser requires an HTTP(S) page,
+derives the corresponding `ws:` or `wss:` origin, and opens a native
+`WebSocket`.
+
+That path can be exercised by a packaged shell only when the shell embeds the
+ordinary served DSH Web profile over HTTP(S). Such a result must identify the
+exact shell and proves only that architecture.
+
+Harness `dsh-v0.1.2-alpha.1` separately [documents an Electron
+model](https://github.com/deepseek-ai/deepseek-harness/blob/cd5ef8148158c3a752a658978873241fdf8e2bbc/docs/subsystems/web-server.md#L1-L7)
+that loads the built UI over `file://` and carries Fetch through IPC instead of
+`dsh-host-webserver`. The current client fails closed on `file:`, and Harness's
+page transport hooks do not expose an arbitrary authenticated binary duplex
+channel. Therefore that Desktop model is unsupported by the current carrier,
+not merely untested. [Issue #20](https://github.com/Jstn-1g/dsh-live-voice/issues/20)
+tracks either a public transport-independent duplex seam or a measured,
+bounded redesign over the existing Remote/Gateway facilities. It must preserve
+all consent, authority, credential, backpressure, byte, time, and teardown
+invariants.
+
 All provider behavior is fake-server tested. Capture/resampling and audible
 playback are deterministic dependency-fake tested, including permission,
 worklet-crash, cap, ordering, backpressure, and teardown paths. Credentialed
-Qwen behavior, a packaged DSH Desktop smoke, browser CSP compatibility, and
-measured latency remain release gates.
+Qwen behavior and an exact packaged served-Web shell physical-device smoke
+remain v0.3 release gates. Portable IPC Desktop transport is a deferred
+compatibility target rather than a requirement for that release; browser CSP
+compatibility and measured latency also remain deferred.

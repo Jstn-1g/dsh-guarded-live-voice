@@ -47,8 +47,10 @@ The package-root `openQwenManualTurn` primitive owns provider destination,
 protocol, and resource controls. Direct Host-side callers must compose an
 equivalent exact-authority and consumed-consent boundary; the registered
 `apply` path does so. The included capture/playback implementation is
-deterministic-fake tested but not yet proven in a packed DSH Desktop install or
-against a credentialed Qwen endpoint.
+deterministic-fake tested but not yet proven in a packaged served-Web shell or
+against a credentialed Qwen endpoint. The separate Harness-documented
+`file://` + IPC Desktop carrier is not supported by the current direct
+WebSocket and requires issue #20.
 
 ## Known limitation
 

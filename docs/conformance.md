@@ -21,8 +21,8 @@ these are proven:
   wall-clock deadlines even when a peer dribbles data below byte ceilings;
 - browser capture resamples to PCM16 mono/16 kHz only after accepted disclosure
   and a second record gesture, and default playback consumes PCM16 mono/24 kHz
-  without durable storage; these paths pass both deterministic tests and a
-  packed Desktop/Web smoke;
+  without durable storage; these paths pass deterministic tests and the exact
+  shipped Web-profile smokes, while packaged-shell evidence remains separate;
 - microphone, playback, sockets, timers, and buffers stop on every lifecycle
   edge;
 - accepted proposals fill but never submit the ordinary composer, and the
@@ -32,6 +32,24 @@ these are proven:
 - the one-shot carrier releases its connection slot after terminal completion;
 - build, packed-install, and current DSH profile smokes pass; and
 - documentation states only behavior demonstrated by those gates.
+
+## Packaged Desktop carrier scopes
+
+“Packaged Desktop” is not one transport claim. A shell that embeds the served
+DSH Web profile over HTTP(S) can, in principle, reach the current
+`/guarded-voice` WebSocket. [Issue #9](https://github.com/Jstn-1g/dsh-live-voice/issues/9)
+requires an exact install, restart, credential-free mount, uninstall, and
+cleanup receipt before that shell is claimable.
+
+Harness `dsh-v0.1.2-alpha.1` also documents a packaged Electron model that
+loads the UI over `file://` and carries Fetch through IPC. The current voice
+client rejects non-HTTP(S) pages and its Host side registers only a Web-server
+upgrade, so the IPC model cannot pass the present implementation. [Issue
+#20](https://github.com/Jstn-1g/dsh-live-voice/issues/20) is the prerequisite
+transport task. A served-Web shell receipt must not be promoted into an IPC
+Desktop claim. Portable support for every Desktop carrier is not a v0.3 release
+requirement: the current release decision requires credential-backed Qwen and
+at least one packaged-client physical-device smoke.
 
 ## Deterministic Harness composition smoke
 

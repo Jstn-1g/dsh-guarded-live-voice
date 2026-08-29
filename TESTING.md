@@ -19,6 +19,20 @@ status.
 - Read the current [release gate](https://github.com/Jstn-1g/dsh-live-voice/issues/5)
   before deciding what a result proves.
 
+## Runtime scope
+
+The current preview is implemented for the served DSH Web profile. A packaged
+shell may test it only when that exact shell embeds the ordinary HTTP(S) Web
+profile; name the shell, version, commit or immutable asset, and carrier in the
+report. The candidate Tauri v0.9.3 receipt is tracked in [issue
+#9](https://github.com/Jstn-1g/dsh-live-voice/issues/9).
+
+Do not attempt to report the Harness-documented `file://` + IPC Desktop model
+as supported. The current controller rejects `file:` and its custom socket is
+reachable only through a `ctx.webServer.registerUpgrade` route. [Issue
+#20](https://github.com/Jstn-1g/dsh-live-voice/issues/20) must supply or validate
+a portable transport before that architecture can be tested.
+
 ## Install and mount check
 
 Install the exact preview into the Web profile:
@@ -81,10 +95,13 @@ capturing sensitive content:
 7. Closing, cancelling, Session disposal, or page teardown releases owned audio,
    sockets, timers, and buffers for the path being tested.
 
-Credential-backed Qwen, physical microphone and speaker, OS indicators, and
-packaged Desktop behavior remain open gates. Maintainer-run synthetic BFCache
-evidence is recorded below, but the BFCache issue remains open for independent
-reproduction on its exact environment.
+Credential-backed Qwen and a packaged-client physical microphone/speaker and OS
+indicator smoke remain the v0.3 RC/stable gates. A served-Web packaged shell is
+the current candidate for that exact test. The separate `file://` +
+Fetch-over-IPC architecture remains unsupported, but portable support for every
+Desktop carrier is not a v0.3 release requirement. Maintainer-run synthetic
+BFCache evidence is recorded below, while the BFCache issue remains open for
+independent reproduction on its exact environment.
 
 ## Deterministic contributor checks
 
@@ -102,6 +119,11 @@ official DSH CLI and exercises a manual turn against a local fake Qwen peer:
 DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
   pnpm run smoke:harness:fake-qwen
 ```
+
+Revision boundary: `smoke:harness:alpha-auth`, `smoke:browser:bfcache`, and
+`smoke:harness:browser:bfcache` were added after the immutable
+`v0.3.0-preview.1` / `fdeb7c8` artifact. Run them from an explicit current-main
+commit and record that commit; do not attribute their result to preview.1.
 
 For the exact source-built `dsh-v0.1.2-alpha.1` authenticated Web profile, run
 the alpha-specific smoke against a clean checkout with a verified official
@@ -186,8 +208,10 @@ dsh plugin --profile web remove dsh-guarded-live-voice
 ```
 
 Remove any machine-local `guarded-live-voice` override that you added, then
-restart the Web profile. A packaged-Desktop restart and uninstall receipt is
-still an open release gate; do not infer that path from a Web-profile removal.
+restart the Web profile. A packaged served-Web shell still needs its own
+restart and uninstall receipt; do not infer that result from a CLI Web-profile
+removal. A `file://` + IPC shell additionally needs the transport work in issue
+#20 before this removal procedure applies.
 
 ## Report the result
 
@@ -196,7 +220,8 @@ Open a structured
 with:
 
 - exact plugin and DSH versions or commit SHAs;
-- OS, architecture, profile, browser or Desktop version, and install source;
+- OS, architecture, profile, browser or exact packaged-shell version, carrier,
+  and install source;
 - the exact procedure and last successful visible state;
 - pass, fail, partial, or inconclusive outcome; and
 - the smallest sanitized error, timing, or state receipt needed to reproduce.
