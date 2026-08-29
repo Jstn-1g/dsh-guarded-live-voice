@@ -10,8 +10,7 @@ import { VoiceClientController } from './controller.js'
 import type { VoiceInjected } from './contract.js'
 import { en, NS, zh, type VoiceKey } from './locales.js'
 import { bindPageLifecycleCleanup } from './page-lifecycle.js'
-import { VoiceControl } from './VoiceControl.js'
-import { VoicePanel } from './VoicePanel.js'
+import { VoiceControlSeat, VoicePanelSeat } from './VoiceSeats.js'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -35,6 +34,7 @@ export function apply(ctx: ClientContext): void {
   const injected = (): VoiceInjected => ({
     hooks: { voice: controller },
     getVoiceSnapshot: controller.getSnapshot,
+    mountVoiceSession: controller.mountSession,
     startVoice: sessionId => { controller.start(sessionId) },
     acceptDisclosure: (sessionId, draftRevision, composerIdentity) => {
       controller.accept(sessionId, draftRevision, composerIdentity)
@@ -65,12 +65,12 @@ export function apply(ctx: ClientContext): void {
     order: 30,
     locale: NS,
     inject: injected,
-  }, VoiceControl))
+  }, VoiceControlSeat))
   ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
     name: 'conversation.input.dock',
     id: 'guarded-live-voice-disclosure',
     order: 30,
     locale: NS,
     inject: injected,
-  }, VoicePanel))
+  }, VoicePanelSeat))
 }

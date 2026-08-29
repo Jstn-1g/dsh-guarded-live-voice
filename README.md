@@ -4,9 +4,9 @@
 
 [![CI](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/ci.yml/badge.svg)](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/ci.yml)
 
-[Preview release](https://github.com/Jstn-1g/dsh-live-voice/releases/tag/v0.3.0-preview.2)
-· [Contributing](https://github.com/Jstn-1g/dsh-live-voice/blob/main/CONTRIBUTING.md)
-· [Testing guide](https://github.com/Jstn-1g/dsh-live-voice/blob/main/TESTING.md)
+[Preview release](https://github.com/Jstn-1g/dsh-live-voice/releases/tag/v0.3.0-preview.3)
+· [Contributing](CONTRIBUTING.md)
+· [Testing guide](TESTING.md)
 · [Release gate](https://github.com/Jstn-1g/dsh-live-voice/issues/5)
 
 A safety-first live-voice add-on for the served DeepSeek Harness Web profile
@@ -19,15 +19,15 @@ proven.
 ## Current status
 
 Unless stated otherwise, this section describes the immutable
-`v0.3.0-preview.2` artifact and its tagged source. Later `main` changes are not
+`v0.3.0-preview.3` artifact and its tagged source. Later `main` changes are not
 part of that release. Bind every result to the exact revision that was tested.
 
 ### Runtime support
 
 | Runtime | Preview status |
 | --- | --- |
-| Shipped DSH `web` profile on v0.1.1-rc.2 | Exact fake-provider composition and official Web-profile BFCache receipt passed; physical audio, live Qwen, and independent reproduction remain open. |
-| Exact source-built `dsh-v0.1.2-alpha.1` Web profile | Browser-session authentication and one fake-provider turn passed for that pinned tag only. The declared peer ranges remain unchanged and exclude this alpha prerelease; verified release-line support remains rc.2. |
+| Shipped DSH `web` profile on v0.1.1-rc.2 | Preview.3 packed fake-provider composition passed. Preview.2 recorded the official Web-profile BFCache receipt; that older receipt is not rebound to this artifact. Physical audio, live Qwen, and independent reproduction remain open. |
+| Exact source-built `dsh-v0.1.2-alpha.1` Web profile | Authenticated composition, official Web-profile BFCache, and an active SPA Session switch passed with synthetic audio and a fake provider. The peer range admits this exact alpha only; later alpha builds are not inferred. |
 | Community packaged shell embedding the served Web profile over HTTP(S) | Structurally compatible candidate, not a pass. The exact Tauri v0.9.3 install/restart/uninstall run is tracked in [issue #9](https://github.com/Jstn-1g/dsh-live-voice/issues/9). |
 | Harness-documented packaged `file://` + Fetch-over-IPC model | Not supported by the current direct WebSocket carrier. A public transport seam or validated Remote redesign is tracked in [issue #20](https://github.com/Jstn-1g/dsh-live-voice/issues/20). |
 
@@ -86,6 +86,16 @@ same consumed-consent and authority lease:
 - ordered PCM16 mono/24 kHz Web Audio playback with five-second and 256-live-
   source ceilings, reset ownership, and fail-closed backpressure.
 
+Preview.3 also fixes a lifecycle isolation defect in preview.2: leaving an
+active Session through DSH's client-side navigation could remove both voice
+controls without stopping the shared controller. Each rendered control now
+holds an exact-Session lease. Commit-phase unmount releases the final lease and
+schedules same-turn teardown before the next browser task, stopping that
+Session's socket, capture, playback, provider path, timers, and transcript
+state. Parent/fork-child isolation is covered by Host tests, and an
+exact-alpha browser smoke verifies that an active old Session cannot continue
+capturing or sending after the UI switches to a new Session.
+
 The preview still does **not** support continuous conversation or barge-in, send
 DSH history/files/instructions, call tools, submit the composer, or write custom
 session events. Capture, resampling, framing, cleanup, playback ordering, and
@@ -108,9 +118,11 @@ authenticated composition smoke now verifies the exact,
 clean source-built DSH `dsh-v0.1.2-alpha.1` Web profile: an unauthenticated voice
 upgrade receives `401`, the private launch token is exchanged for the Harness
 cookie without entering the receipt, and the authenticated client, workspace,
-Session, and fake-provider voice turn complete. This exact-tag result does not
-widen the published peer range, claim general alpha compatibility, or infer
-BFCache behavior for the alpha. This is not a marketplace-ready voice product
+Session, and fake-provider voice turn complete. Preview.3 additionally records
+real BFCache restoration and active SPA Session-switch teardown through that
+exact alpha's shipped Web UI. The published peer range admits only this pinned
+alpha in addition to the existing rc line; it does not claim later alpha
+compatibility. This is not a marketplace-ready voice product
 and is not “ChatGPT
 Live parity.” DSH Live Voice is the product name; the guarded consent and
 authority model remains its security architecture.
@@ -142,7 +154,7 @@ The release tag includes prebuilt Host and browser artifacts, so installation
 does not require a source build:
 
 ```sh
-dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.2
+dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.3
 ```
 
 Restart the Web profile after installation. Existing v0.2.0 testers should
@@ -173,7 +185,9 @@ stable, marketplace-ready, or officially endorsed product.
 
 ## Development
 
-Requirements: Node.js 22.19.x or Node.js 24+, and pnpm 11.7.
+Requirements: Node.js 22.19 or newer within the 22.x line, or Node.js 24.12+,
+and pnpm 11.7. Harness's current Web loader is not supported on Node 24.0
+through 24.11.1.
 
 ```sh
 pnpm install

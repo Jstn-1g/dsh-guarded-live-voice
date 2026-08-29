@@ -146,6 +146,8 @@ export class VoiceClientController {
   private inputBytes = 0
   private outputBytes = 0
   private composerBinding: ComposerBinding | undefined
+  private readonly sessionMounts = new Map<string, number>()
+  private readonly pendingSessionStops = new Map<string, object>()
 
   constructor(private readonly options: VoiceClientControllerOptions) {
     this.location = options.location ?? window.location
@@ -168,6 +170,42 @@ export class VoiceClientController {
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
     return () => { this.listeners.delete(listener) }
+  }
+
+  /**
+   * Retain one rendered seat for an exact Session. The last seat leaving is
+   * the SPA-navigation boundary: no hidden socket, capture, playback, or
+   * transcript may survive after that Session's controls disappear.
+   */
+  mountSession = (sessionId: string): (() => void) => {
+    if (this.disposed) return () => {}
+    this.pendingSessionStops.delete(sessionId)
+    this.sessionMounts.set(sessionId, (this.sessionMounts.get(sessionId) ?? 0) + 1)
+    let mounted = true
+    return () => {
+      if (!mounted) return
+      mounted = false
+      const count = this.sessionMounts.get(sessionId)
+      if (count === undefined) return
+      if (count > 1) {
+        this.sessionMounts.set(sessionId, count - 1)
+        return
+      }
+      this.sessionMounts.delete(sessionId)
+      // The seat uses a layout cleanup, so no later browser task can produce
+      // another frame before this microtask. React StrictMode and slot/HMR
+      // remounts may still release then reacquire the same seat in one task;
+      // defer final teardown so replay cannot kill a visible lifecycle.
+      const pending = {}
+      this.pendingSessionStops.set(sessionId, pending)
+      queueMicrotask(() => {
+        if (this.disposed
+          || this.pendingSessionStops.get(sessionId) !== pending
+          || this.sessionMounts.has(sessionId)) return
+        this.pendingSessionStops.delete(sessionId)
+        this.stop(sessionId)
+      })
+    }
   }
 
   /** Begin exact-session setup; only the later accept call can authorize the provider. */
@@ -410,6 +448,8 @@ export class VoiceClientController {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    this.sessionMounts.clear()
+    this.pendingSessionStops.clear()
     ++this.generation
     this.releaseActive(1000, 'plugin disposed')
     this.resetTurn()

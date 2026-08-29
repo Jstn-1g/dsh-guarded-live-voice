@@ -52,7 +52,7 @@ playback, or lifecycle boundary.
 
 Requirements:
 
-- Node.js 22.19.x or Node.js 24+; and
+- Node.js 22.19 or newer within the 22.x line, or Node.js 24.12+; and
 - pnpm 11.7.
 
 ```sh
@@ -82,7 +82,8 @@ before interpreting a result. The BFCache smoke proves only its standalone
 Chromium path. The final opt-in smoke rebuilds an exact clean Harness checkout
 and drives its shipped `web` profile, but still uses synthetic audio and a fake
 loopback provider. The alpha-auth smoke is restricted to the exact source-built
-`dsh-v0.1.2-alpha.1` tag and does not widen the package peer range. None of
+`dsh-v0.1.2-alpha.1` tag, which the package admits exactly without inferring a
+later alpha build. None of
 these smokes proves a live provider, physical audio device, packaged Desktop
 path, broad alpha compatibility, or independent BFCache reproduction.
 

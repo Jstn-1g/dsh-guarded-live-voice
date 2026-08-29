@@ -96,7 +96,7 @@ context, and installer throughout that disposable-VM run, then bind the later
 Install the exact preview into the Web profile:
 
 ```sh
-dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.2
+dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.3
 ```
 
 Restart the Web profile, open a live Session, and inspect the composer tool row.
@@ -150,8 +150,9 @@ capturing sensitive content:
 5. A completed turn may show final user and assistant transcripts.
 6. **Use my transcript as draft** may copy only the final user transcript into
    the still-current composer. It must not submit or invoke a tool.
-7. Closing, cancelling, Session disposal, or page teardown releases owned audio,
-   sockets, timers, and buffers for the path being tested.
+7. Closing, cancelling, Session disposal, switching to a new or forked Session,
+   or page teardown releases the old Session's owned audio, sockets, provider,
+   timers, and buffers.
 
 Credential-backed Qwen and a packaged-client physical microphone/speaker and OS
 indicator smoke remain the v0.3 RC/stable gates. A served-Web packaged shell is
@@ -178,9 +179,10 @@ DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
   pnpm run smoke:harness:fake-qwen
 ```
 
-Revision boundary: the `v0.3.0-preview.2` source tag includes
+Revision boundary: the `v0.3.0-preview.3` source tag includes
 `smoke:harness:alpha-auth`, `smoke:browser:bfcache`, and
-`smoke:harness:browser:bfcache`; the `v0.3.0-preview.1` source does not. The
+`smoke:harness:browser:bfcache`, including the SPA Session-switch regression;
+the `v0.3.0-preview.1` source does not. The
 installable tarball excludes maintainer scripts. Run them from an exact source
 tag or commit and record that revision; never attribute a result to an earlier
 artifact.
@@ -197,9 +199,10 @@ DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
 It requires a real unauthenticated `401`, privately exchanges the launch token
 for the Harness cookie, then exercises the advertised client combo,
 workspace/session RPC, and one fake-provider voice turn. Its sanitized receipt
-contains no token or cookie. This is exact-tag source-build evidence only; it
-does not widen the package peer range or prove credential-backed Qwen,
-physical audio, BFCache, packaged Desktop, or broad alpha compatibility.
+contains no token or cookie. This is exact-tag source-build evidence only. The
+published peer set admits `0.1.2-alpha.1` exactly, not later alpha builds; this
+smoke does not prove credential-backed Qwen, physical audio, BFCache, packaged
+Desktop, or broad alpha compatibility.
 
 The optional controlled-browser smoke builds the client and prints a loopback
 URL for a synthetic raw-unload check:
@@ -242,9 +245,10 @@ DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
 
 The headed run fails unless Chrome reports an actual BFCache restore, both DSH
 event streams reconnect, the active resources are released, the original draft
-is unchanged, and restored lifecycles require fresh disclosure, challenges, and
-Session binding. The receipt records the exact DSH commit/version, built-client
-artifact digest, Web index digest, Chrome, Playwright, OS, and explicit claim
+is unchanged, an active SPA switch stops the old Session without `pagehide`,
+and restored or newly mounted lifecycles require fresh disclosure, challenges,
+and Session binding. The receipt records the exact DSH commit/version,
+built-client artifact digest, Web index digest, Chrome, Playwright, OS, and explicit claim
 limits. It uses a fake loopback provider and synthetic Web Audio; it does not
 use a real provider credential or credential-backed Qwen, a physical microphone
 or speaker, an OS indicator, or packaged Desktop. Issue #7 remains open until

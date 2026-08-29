@@ -230,7 +230,7 @@ function createFakeProvider() {
         'fake provider received unexpected authorization',
       )
       acceptedConnections += 1
-      assert.equal(acceptedConnections <= (runBrowserBfcache ? 2 : 1), true)
+      assert.equal(acceptedConnections <= (runBrowserBfcache ? 3 : 1), true)
       webSocketServer.handleUpgrade(request, socket, head, ws => {
         webSocketServer.emit('connection', ws, request)
       })
@@ -521,11 +521,13 @@ async function driveGateway(baseUrl, sessionId, workspaceId, cookie) {
   }
 }
 
-async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, testCase) {
+async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, testCase, authentication) {
   const webRequire = createRequire(join(harnessRoot, 'apps', 'web', 'package.json'))
   const { chromium } = webRequire('playwright')
   const playwrightVersion = webRequire('playwright/package.json').version
-  const awayServer = createServer((_request, response) => {
+  let awayCookieHeader
+  const awayServer = createServer((request, response) => {
+    awayCookieHeader = request.headers.cookie
     response.writeHead(200, {
       'Cache-Control': 'no-store',
       'Content-Type': 'text/html; charset=utf-8',
@@ -534,11 +536,13 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
   })
   await new Promise((resolveListen, rejectListen) => {
     awayServer.once('error', rejectListen)
-    awayServer.listen(0, '127.0.0.1', resolveListen)
+    // A host-only Harness cookie ignores ports. Use a distinct loopback host so
+    // the controlled traversal server cannot receive the alpha auth secret.
+    awayServer.listen(0, '127.0.0.2', resolveListen)
   })
   const awayAddress = awayServer.address()
   assert.ok(awayAddress !== null && typeof awayAddress !== 'string')
-  const awayUrl = `http://127.0.0.1:${String(awayAddress.port)}`
+  const awayUrl = `http://127.0.0.2:${String(awayAddress.port)}`
 
   let browser
   try {
@@ -548,6 +552,18 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
       ignoreDefaultArgs: ['--disable-back-forward-cache'],
     })
     const context = await browser.newContext({ locale: 'en-US' })
+    if (authentication.cookie !== undefined) {
+      const { cookie } = authentication
+      const separator = cookie.indexOf('=')
+      assert.ok(separator > 0, 'alpha browser cookie is malformed')
+      await context.addCookies([{
+        name: cookie.slice(0, separator),
+        value: cookie.slice(separator + 1),
+        url: baseUrl,
+        httpOnly: true,
+        sameSite: 'Strict',
+      }])
+    }
     const page = await context.newPage()
     const targetOrigin = new URL(baseUrl).origin
     await page.addInitScript(({ caseName, expectedOrigin, seedSessionId }) => {
@@ -562,6 +578,7 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
         mediaRequests: 0,
         ownedAudioCloseCallsBeforeRestore: 0,
         ownedAudioStatesAfterRestore: [],
+        pagehideCount: 0,
         pagehidePersisted: null,
         pageshowPersisted: [],
         phaseBeforeHide: null,
@@ -607,6 +624,8 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
           const path = new URL(this.url).pathname
           const kind = path === '/guarded-voice'
             ? 'voice'
+            : path === '/api/remote.mux'
+              ? 'remote.mux'
             : path === '/api/events.mux'
               ? 'events.mux'
               : path === '/api/events.host' ? 'events.host' : 'other'
@@ -722,6 +741,7 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
       })
 
       addEventListener('pagehide', event => {
+        state.pagehideCount += 1
         state.pagehidePersisted = event.persisted
         state.phaseBeforeHide = document.querySelector(
           'button[aria-label="Close DSH Live Voice"], button[aria-label="Open DSH Live Voice"]',
@@ -756,11 +776,13 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
     await configureLater.waitFor({ timeout: 10_000 }).catch(() => {})
     if (await configureLater.isVisible()) await configureLater.click()
 
-    await page.waitForFunction(() => {
+    const eventSocketKinds = runAlphaAuth ? ['remote.mux'] : ['events.mux', 'events.host']
+    await page.waitForFunction((expectedKinds) => {
       const records = window.__dshVoiceOfficialBfcache?.socketRecords ?? []
-      return records.some(record => record.kind === 'events.mux' && record.openEvents > 0)
-        && records.some(record => record.kind === 'events.host' && record.openEvents > 0)
-    }, undefined, { timeout: TURN_TIMEOUT_MS })
+      return expectedKinds.every(kind => (
+        records.some(record => record.kind === kind && record.openEvents > 0)
+      ))
+    }, eventSocketKinds, { timeout: TURN_TIMEOUT_MS })
     await page.evaluate(() => {
       addEventListener('pagehide', () => {
         const state = window.__dshVoiceOfficialBfcache
@@ -770,8 +792,10 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
     })
     const bootNonce = await page.evaluate(() => window.__dshVoiceOfficialBfcache.bootNonce)
     let originalDraft = null
+    const composer = page.locator(
+      '[data-composer-input][contenteditable="true"], [data-input-scroll] textarea',
+    ).last()
     if (testCase === 'active') {
-      const composer = page.locator('[data-input-scroll] textarea')
       originalDraft = 'Official BFCache draft sentinel'
       await composer.fill(originalDraft)
       await voiceControl.click()
@@ -795,24 +819,29 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
     }
 
     await page.goto(awayUrl, { waitUntil: 'load', timeout: TURN_TIMEOUT_MS })
+    assert.equal(awayCookieHeader, undefined, 'BFCache traversal received the Harness auth cookie')
     let restoredSessionId
     if (testCase === 'active') {
-      const restoredSession = await rpc(baseUrl, 'session.create', { workspaceId }, 101)
+      const restoredSession = await rpc(
+        baseUrl,
+        'session.create',
+        { workspaceId },
+        101,
+        authentication,
+      )
       restoredSessionId = restoredSession.sessionId
     }
     await page.goBack({ waitUntil: 'commit', timeout: TURN_TIMEOUT_MS })
     await voiceControl.waitFor({ timeout: TURN_TIMEOUT_MS })
     try {
-      await page.waitForFunction(() => {
+      await page.waitForFunction((expectedKinds) => {
         const state = window.__dshVoiceOfficialBfcache
         if (state?.pageshowPersisted.at(-1) !== true) return false
         const records = state.socketRecords
-        return records.some(record => (
-          record.kind === 'events.mux' && record.afterRestore && record.openEvents > 0
-        )) && records.some(record => (
-          record.kind === 'events.host' && record.afterRestore && record.openEvents > 0
-        ))
-      }, undefined, { timeout: TURN_TIMEOUT_MS })
+        return expectedKinds.every(kind => records.some(record => (
+          record.kind === kind && record.afterRestore && record.openEvents > 0
+        )))
+      }, eventSocketKinds, { timeout: TURN_TIMEOUT_MS })
     } catch (error) {
       const pageState = await page.evaluate(() => {
         const state = window.__dshVoiceOfficialBfcache
@@ -860,7 +889,7 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
     assert.deepEqual(pageErrors, [])
 
     const voiceSockets = state.socketRecords.filter(record => record.kind === 'voice')
-    for (const kind of ['events.mux', 'events.host']) {
+    for (const kind of eventSocketKinds) {
       const sockets = state.socketRecords.filter(record => record.kind === kind)
       assert.equal(sockets.some(record => !record.afterRestore && record.openEvents > 0), true)
       assert.equal(
@@ -892,7 +921,9 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
         code: 1000,
         reason: 'stopped',
       })
-      assert.equal(await page.locator('[data-input-scroll] textarea').inputValue(), originalDraft)
+      assert.equal(await composer.evaluate(element => (
+        element instanceof HTMLTextAreaElement ? element.value : element.textContent
+      )), originalDraft)
 
       const providerConnectionsBeforeSameSession = fakeProvider.acceptedConnections
       await voiceControl.click()
@@ -928,6 +959,32 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
       }, undefined, { timeout: TURN_TIMEOUT_MS })
 
       assert.ok(restoredSessionId !== undefined)
+      const providerConnectionsBeforeSpaSwitch = fakeProvider.acceptedConnections
+      const audioFramesBeforeSpaSwitch = await page.evaluate(
+        () => window.__dshVoiceOfficialBfcache.audioFramesSent,
+      )
+      await voiceControl.click()
+      await page.getByRole('heading', { name: 'Before voice is enabled', level: 3 }).waitFor({
+        timeout: TURN_TIMEOUT_MS,
+      })
+      await page.getByRole('button', { name: 'Continue setup', exact: true }).click()
+      const spaRecordControl = page.getByRole('button', { name: 'Start recording', exact: true })
+      await spaRecordControl.waitFor({ timeout: TURN_TIMEOUT_MS })
+      await spaRecordControl.click()
+      await page.getByRole('status').filter({ hasText: 'Recording one bounded turn' }).waitFor({
+        timeout: TURN_TIMEOUT_MS,
+      })
+      await waitFor(
+        () => fakeProvider.acceptedConnections === providerConnectionsBeforeSpaSwitch + 1,
+        TURN_TIMEOUT_MS,
+        'SPA-switch provider connection',
+      )
+      await page.waitForFunction(
+        before => window.__dshVoiceOfficialBfcache.audioFramesSent > before,
+        audioFramesBeforeSpaSwitch,
+        { timeout: TURN_TIMEOUT_MS },
+      )
+
       const workspaceRow = page.locator('[role="treeitem"][aria-expanded]').filter({ hasText: 'workspace' }).first()
       await workspaceRow.waitFor({ timeout: TURN_TIMEOUT_MS })
       await workspaceRow.hover()
@@ -936,6 +993,53 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
         const current = localStorage.getItem('dsh.sessions.current')
         return current !== null && JSON.parse(current).sessionId === expectedSessionId
       }, restoredSessionId, { timeout: TURN_TIMEOUT_MS })
+      await page.waitForFunction(() => {
+        const records = window.__dshVoiceOfficialBfcache.socketRecords
+          .filter(record => record.kind === 'voice')
+        const switched = records.at(-1)
+        const latestTrack = window.__dshVoiceOfficialTracks.at(-1)
+        return records.length === 3
+          && switched.closeCalls.length === 1
+          && switched.closeEvents.length === 1
+          && latestTrack?.readyState === 'ended'
+      }, undefined, { timeout: TURN_TIMEOUT_MS })
+      await voiceControl.waitFor({ timeout: TURN_TIMEOUT_MS })
+      assert.equal(await voiceControl.isEnabled(), true, 'new Session voice control stayed occupied by old Session')
+      assert.equal(await voiceControl.getAttribute('aria-label'), 'Open DSH Live Voice')
+      assert.equal(
+        await page.getByRole('heading', { name: 'Before voice is enabled', level: 3 }).count(),
+        0,
+        'old Session disclosure remained visible after SPA switch',
+      )
+      await waitFor(() => fakeProvider.clientCount === 0, TURN_TIMEOUT_MS, 'SPA-switch provider disposal')
+      const spaState = await page.evaluate(() => structuredClone({
+        audioFramesSent: window.__dshVoiceOfficialBfcache.audioFramesSent,
+        mediaRequests: window.__dshVoiceOfficialBfcache.mediaRequests,
+        pagehideCount: window.__dshVoiceOfficialBfcache.pagehideCount,
+        socketRecords: window.__dshVoiceOfficialBfcache.socketRecords,
+        trackStates: window.__dshVoiceOfficialTracks.map(track => track.readyState),
+      }))
+      await page.waitForTimeout(250)
+      assert.equal(
+        await page.evaluate(() => window.__dshVoiceOfficialBfcache.audioFramesSent),
+        spaState.audioFramesSent,
+        'hidden SPA Session continued sending microphone frames',
+      )
+      const spaVoice = spaState.socketRecords.filter(record => record.kind === 'voice').at(-1)
+      assert.equal(spaState.pagehideCount, 1, 'SPA Session switch unexpectedly used document navigation')
+      assert.equal(spaState.mediaRequests, 2)
+      assert.equal(spaState.trackStates.at(-1), 'ended')
+      assert.equal(spaVoice.binaryFrames > 0, true)
+      assert.deepEqual(spaVoice.closeCalls, [
+        { afterRestore: true, code: 1000, reason: 'stopped' },
+      ])
+      assert.deepEqual(spaVoice.closeEvents, [
+        { afterRestore: true, code: 1000, reason: 'stopped' },
+      ])
+      assert.ok(spaVoice.controls.some(control => (
+        control?.type === 'bind' && control.sessionId === sessionId
+      )))
+
       const providerConnectionsBeforeFreshConsent = fakeProvider.acceptedConnections
       const providerInputBeforeFreshConsent = fakeProvider.inputBytes
       await voiceControl.click()
@@ -947,7 +1051,7 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
         const sockets = window.__dshVoiceOfficialBfcache.socketRecords
           .filter(record => record.kind === 'voice')
         const fresh = sockets.at(-1)
-        return sockets.length === 3
+          return sockets.length === 4
           && fresh.challenges.length === 1
           && fresh.controls.some(control => (
             control?.type === 'bind' && control.sessionId === expectedSessionId
@@ -960,6 +1064,7 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
         .filter(record => record.kind === 'voice').at(-1)
       assert.notEqual(freshVoiceBeforeConsent.challenges[0], voiceSockets[0].challenges[0])
       assert.notEqual(freshVoiceBeforeConsent.challenges[0], sameSessionVoice.challenges[0])
+      assert.notEqual(freshVoiceBeforeConsent.challenges[0], spaVoice.challenges[0])
       assert.equal(freshVoiceBeforeConsent.binaryFrames, 0)
 
       await page.getByRole('button', { name: 'Continue setup', exact: true }).click()
@@ -977,27 +1082,38 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
       await waitFor(() => fakeProvider.clientCount === 0, TURN_TIMEOUT_MS, 'fresh provider disposal')
       const finalState = await page.evaluate(() => structuredClone(window.__dshVoiceOfficialBfcache))
       const finalVoiceSockets = finalState.socketRecords.filter(record => record.kind === 'voice')
-      assert.equal(finalVoiceSockets.length, 3)
+      assert.equal(finalVoiceSockets.length, 4)
       assert.deepEqual(finalVoiceSockets[1].closeCalls, [
         { afterRestore: true, code: 1000, reason: 'stopped' },
       ])
       assert.deepEqual(finalVoiceSockets[1].closeEvents, [
         { afterRestore: true, code: 1000, reason: 'stopped' },
       ])
-      assert.equal(finalVoiceSockets[2].binaryFrames, 0)
       assert.deepEqual(finalVoiceSockets[2].closeCalls, [
         { afterRestore: true, code: 1000, reason: 'stopped' },
       ])
+      assert.deepEqual(finalVoiceSockets[2].closeEvents, [
+        { afterRestore: true, code: 1000, reason: 'stopped' },
+      ])
+      assert.equal(finalVoiceSockets[3].binaryFrames, 0)
+      assert.deepEqual(finalVoiceSockets[3].closeCalls, [
+        { afterRestore: true, code: 1000, reason: 'stopped' },
+      ])
       activeReceipt = {
-        audioFramesSent: state.audioFramesSent,
+        audioFramesSent: finalState.audioFramesSent,
         freshChallengeUnique: true,
         freshDisclosureRequired: true,
         freshSessionBound: true,
         ownedAudioContextsCloseRequested: state.ownedAudioCloseCallsBeforeRestore,
         originalComposerDraftPreserved: true,
-        postTeardownBrowserAudioSends: state.audioFramesSentAfterTeardown,
+        postBfcacheTeardownBrowserAudioSends: state.audioFramesSentAfterTeardown,
         sameSessionChallengeUnique: true,
         sameSessionFreshDisclosureRequired: true,
+        spaSessionSwitchNoPagehide: true,
+        spaSessionSwitchProviderDisposed: true,
+        spaSessionSwitchRemountedIdleControl: true,
+        spaSessionSwitchStoppedCapture: true,
+        spaSessionSwitchStoppedVoiceSocket: true,
         syntheticTrackStopped: true,
         timersAfterCleanup: state.pluginTimersAfterCleanup,
         voiceSocketClose: voiceSockets[0].closeCalls[0],
@@ -1037,9 +1153,13 @@ async function driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 
   }
 }
 
-async function driveOfficialBrowserBfcache(baseUrl, sessionId, workspaceId) {
-  const idle = await driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 'idle')
-  const active = await driveOfficialBrowserBfcacheCase(baseUrl, sessionId, workspaceId, 'active')
+async function driveOfficialBrowserBfcache(baseUrl, sessionId, workspaceId, authentication) {
+  const idle = await driveOfficialBrowserBfcacheCase(
+    baseUrl, sessionId, workspaceId, 'idle', authentication,
+  )
+  const active = await driveOfficialBrowserBfcacheCase(
+    baseUrl, sessionId, workspaceId, 'active', authentication,
+  )
   assert.equal(idle.browserVersion, active.browserVersion)
   assert.equal(idle.playwrightVersion, active.playwrightVersion)
   return {
@@ -1191,6 +1311,11 @@ async function main() {
     npm_config_userconfig: userConfig,
     NPM_CONFIG_USERCONFIG: userConfig,
   })
+  const packageManagerVersion = await runChild(process.execPath, [packageManagerEntry, '--version'], {
+    cwd: pluginRoot,
+    env: baseEnvironment,
+    label: 'pnpm runtime identity',
+  })
   let dshClientArtifacts
   let dshCommit
   let dshTag
@@ -1225,6 +1350,7 @@ async function main() {
       DSH_CLIENT_BUILD_PROFILE: 'official',
       DSH_CLIENT_COMMIT_HASH: dshCommit.slice(0, 7).toLowerCase(),
       DSH_CLIENT_TITLE: 'DeepSeek Harness',
+      DSH_CLIENT_VERSION: dshVersion,
     }
     await runChild(process.execPath, [tscEntry, '-b', 'tsconfig.host.json'], {
       cwd: harnessRoot,
@@ -1285,6 +1411,7 @@ async function main() {
       DSH_CLIENT_BUILD_PROFILE: 'official',
       DSH_CLIENT_COMMIT_HASH: dshCommit.slice(0, 7).toLowerCase(),
       DSH_CLIENT_TITLE: 'DeepSeek Harness',
+      DSH_CLIENT_VERSION: dshVersion,
     })
     assert.equal(Number.isSafeInteger(buildRecord.artifacts?.fileCount), true)
     assert.equal(buildRecord.artifacts.fileCount > 0, true)
@@ -1570,8 +1697,9 @@ export { WebSocketServer }
       harness.baseUrl,
       session.sessionId,
       workspaceId,
+      authentication,
     )
-    assert.equal(fakeProvider.acceptedConnections, 2)
+    assert.equal(fakeProvider.acceptedConnections, 3)
     assert.equal(fakeProvider.providerEvents[0], 'session.update')
     assert.equal(fakeProvider.providerEvents.includes('input_audio_buffer.append'), true)
     assert.equal(fakeProvider.providerEvents.includes('input_audio_buffer.commit'), false)
@@ -1595,6 +1723,7 @@ export { WebSocketServer }
       bfcacheSaveRestore: true,
       ...browserBfcache,
       os: { platform: process.platform, release: release() },
+      runtime: { node: process.version, pnpm: packageManagerVersion },
       pluginCommit,
       pluginTarballSha256,
       pluginWorktreeDirty,
@@ -1655,6 +1784,7 @@ export { WebSocketServer }
       liveProvider: false,
       officialDshWebProfile: true,
       os: { platform: process.platform, release: release() },
+      runtime: { node: process.version, pnpm: packageManagerVersion },
       packagedDesktop: false,
       physicalMicrophone: false,
       physicalSpeaker: false,

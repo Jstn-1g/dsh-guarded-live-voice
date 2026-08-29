@@ -177,6 +177,62 @@ describe('ManualTurnCoordinator', () => {
     expect(second.coordinator.size).toBe(0)
   })
 
+  it('stops a disposed parent turn without touching its forked child turn', async () => {
+    const parent = { id: 'parent' }
+    const child = { id: 'child', header: { parentSession: 'parent' } }
+    const sessions = new Map<string, unknown>([
+      ['parent', parent],
+      ['child', child],
+    ])
+    const workspaces = [{ id: 'w1', sessionIds: ['parent', 'child'] }]
+    const tokens = [
+      Buffer.alloc(32, 2).toString('base64url'),
+      Buffer.alloc(32, 3).toString('base64url'),
+    ]
+    const manager = new VoiceSessionManager(
+      new AuthorityGuard(
+        { get: id => sessions.get(id) },
+        { list: () => workspaces },
+      ),
+      new ConsentChallenges({ token: () => tokens.shift() ?? Buffer.alloc(32, 4).toString('base64url') }),
+      async () => ({ provider: 'qwen', model: 'qwen-audio-3.0-realtime-plus' }),
+    )
+    const providerBySession = new Map<string, ManualTurnProviderSession>()
+    const coordinator = new ManualTurnCoordinator(manager, async (binding) => {
+      const provider: ManualTurnProviderSession = {
+        authorization: { provider: 'qwen', model: 'qwen-audio-3.0-realtime-plus' },
+        closed: new Promise(() => {}),
+        appendPcm16: vi.fn(),
+        commit: vi.fn(),
+        close: vi.fn(),
+        subscribe: () => () => {},
+      }
+      providerBySession.set(binding.sessionId, provider)
+      return provider
+    })
+    const parentBegin = manager.begin('parent-connection', 'parent')
+    const childBegin = manager.begin('child-connection', 'child')
+    await manager.acceptConsent('parent-connection', parentBegin.challenge)
+    await manager.acceptConsent('child-connection', childBegin.challenge)
+    await coordinator.start('parent-connection', { event: vi.fn(), failed: vi.fn() })
+    await coordinator.start('child-connection', { event: vi.fn(), failed: vi.fn() })
+
+    expect(coordinator.stopSession('parent')).toEqual(['parent-connection'])
+    expect(manager.stopSession('parent')).toEqual(['parent-connection'])
+    sessions.delete('parent')
+
+    const parentProvider = providerBySession.get('parent')
+    const childProvider = providerBySession.get('child')
+    expect(parentProvider?.close).toHaveBeenCalledOnce()
+    expect(childProvider?.close).not.toHaveBeenCalled()
+    coordinator.appendPcm16('child-connection', new Uint8Array([1, 0]))
+    expect(childProvider?.appendPcm16).toHaveBeenCalledWith(new Uint8Array([1, 0]))
+    expect(coordinator.size).toBe(1)
+
+    coordinator.close()
+    manager.stopSession('child')
+  })
+
   it('releases a completed provider record without reporting a failure', async () => {
     const f = fixture()
     const sink = { event: vi.fn(), failed: vi.fn() }

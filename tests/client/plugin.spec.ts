@@ -129,9 +129,10 @@ describe('lazy browser plugin', () => {
     ])
     const firstInject = f.registrations[0]?.config.inject as ((sessionId: string) => Record<string, unknown>) | undefined
     const secondInject = f.registrations[1]?.config.inject as ((sessionId: string) => Record<string, unknown>) | undefined
-    const first = firstInject?.('session-1') as { hooks: { voice: unknown } } | undefined
-    const second = secondInject?.('session-1') as { hooks: { voice: unknown } } | undefined
+    const first = firstInject?.('session-1') as VoiceInjected | undefined
+    const second = secondInject?.('session-1') as VoiceInjected | undefined
     expect(first?.hooks.voice).toBe(second?.hooks.voice)
+    expect(first?.mountVoiceSession).toBe(second?.mountVoiceSession)
     expect(constructAudioContext).not.toHaveBeenCalled()
     expect(getUserMedia).not.toHaveBeenCalled()
 

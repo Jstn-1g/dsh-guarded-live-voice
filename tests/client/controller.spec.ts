@@ -437,6 +437,72 @@ describe('browser voice controller', () => {
     expect(f.controller.getSnapshot()).toEqual({ phase: 'idle' })
   })
 
+  it('tears down a parent only after its last seat leaves during a fork-child switch', async () => {
+    let handlers: VoiceAudioCaptureHandlers | undefined
+    const capture = {
+      start: vi.fn(() => Promise.resolve()),
+      stop: vi.fn(),
+    }
+    const f = fixture(new FakeSocket(), callbacks => {
+      handlers = callbacks
+      return capture
+    })
+    const releaseParentControl = f.controller.mountSession('parent')
+    const releaseParentPanel = f.controller.mountSession('parent')
+    const releaseChildControl = f.controller.mountSession('child')
+    const releaseChildPanel = f.controller.mountSession('child')
+    f.controller.start('parent')
+    f.socket.open()
+    f.socket.message(consentEvent('parent'))
+    f.controller.accept('parent')
+    f.socket.message(readyEvent('parent'))
+    f.controller.beginCapture('parent')
+    await vi.waitFor(() => { expect(f.controller.getSnapshot().phase).toBe('recording') })
+    handlers?.onChunk(new Uint8Array([1, 0]))
+
+    releaseParentControl()
+    expect(f.controller.getSnapshot().phase).toBe('recording')
+    expect(capture.stop).not.toHaveBeenCalled()
+    expect(f.socket.closes).toEqual([])
+
+    releaseParentPanel()
+    await Promise.resolve()
+    expect(f.controller.getSnapshot()).toEqual({ phase: 'idle' })
+    expect(capture.stop).toHaveBeenCalledOnce()
+    expect(capture.stop).toHaveBeenCalledWith(false)
+    expect(f.socket.sent.map(value => JSON.parse(value)).at(-1)).toEqual({ v: 1, type: 'stop' })
+    expect(f.socket.closes).toEqual([{ code: 1000, reason: 'stopped' }])
+    expect(f.socket.listenerCount()).toBe(0)
+    const binaryFramesAfterCleanup = f.socket.binary.length
+    handlers?.onChunk(new Uint8Array([2, 0]))
+    expect(f.socket.binary).toHaveLength(binaryFramesAfterCleanup)
+
+    f.controller.start('child')
+    releaseChildControl()
+    await Promise.resolve()
+    expect(f.controller.getSnapshot()).toEqual({ phase: 'connecting', sessionId: 'child' })
+    releaseChildPanel()
+    await Promise.resolve()
+    expect(f.controller.getSnapshot()).toEqual({ phase: 'idle' })
+  })
+
+  it('cancels a transient final-seat release when StrictMode remounts the same Session', async () => {
+    const f = fixture()
+    const release = f.controller.mountSession('session-1')
+    f.controller.start('session-1')
+    release()
+    const releaseReplay = f.controller.mountSession('session-1')
+
+    await Promise.resolve()
+    expect(f.controller.getSnapshot()).toEqual({ phase: 'connecting', sessionId: 'session-1' })
+    expect(f.socket.closes).toEqual([])
+
+    releaseReplay()
+    await Promise.resolve()
+    expect(f.controller.getSnapshot()).toEqual({ phase: 'idle' })
+    expect(f.socket.closes).toEqual([{ code: 1000, reason: 'stopped' }])
+  })
+
   it('replaces an old transport and ignores its detached events', () => {
     const first = new FakeSocket()
     const second = new FakeSocket()

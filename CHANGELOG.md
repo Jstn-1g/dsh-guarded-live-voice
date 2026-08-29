@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.3.0-preview.3
+
+- Fix exact-Session lifecycle isolation during DSH client-side navigation.
+  Preview.2 could unmount both Session controls while its shared controller
+  kept the old voice socket, browser capture path, playback, and
+  provider turn alive. Session-scoped UI leases now stop the exact lifecycle
+  when its final seat leaves, while tolerating React StrictMode/HMR replay.
+- Add parent/fork-child SessionStore and manual-turn isolation tests, plus an
+  exact `dsh-v0.1.2-alpha.1` Web-profile browser regression that switches away
+  from an active Session without `pagehide` and verifies stopped capture,
+  socket, provider, and post-cleanup audio before fresh consent in the new
+  Session.
+- Admit only the source-verified `0.1.2-alpha.1` DSH package graph alongside the
+  existing rc range, and adapt the integration proof to alpha's browser-token
+  authentication, `remote.mux`, Lexical composer, and authenticated nested
+  Session creation. Narrow Node support to Node 22.19 or newer within the 22.x
+  line, or Node 24.12+, because upstream's current Web loader fails on earlier
+  Node 24 releases. Credential-backed Qwen,
+  physical devices, packaged Desktop, and broad alpha compatibility remain
+  unverified.
+
 ## 0.3.0-preview.2
 
 - Add a non-installing Windows packaged-shell preflight for the exact community
