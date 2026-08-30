@@ -24,14 +24,14 @@ status.
 The current preview is implemented for the served DSH Web profile. A packaged
 shell may test it only when that exact shell embeds the ordinary HTTP(S) Web
 profile; name the shell, version, commit or immutable asset, and carrier in the
-report. The candidate Tauri v0.9.3 receipt is tracked in [issue
-#9](https://github.com/Jstn-1g/dsh-live-voice/issues/9).
+report. The candidate Tauri v0.9.3 receipt is tracked in
+[issue #9](https://github.com/Jstn-1g/dsh-live-voice/issues/9).
 
 Do not attempt to report the Harness-documented `file://` + IPC Desktop model
 as supported. The current controller rejects `file:` and its custom socket is
-reachable only through a `ctx.webServer.registerUpgrade` route. [Issue
-#20](https://github.com/Jstn-1g/dsh-live-voice/issues/20) must supply or validate
-a portable transport before that architecture can be tested.
+reachable only through a `ctx.webServer.registerUpgrade` route.
+[Issue #20](https://github.com/Jstn-1g/dsh-live-voice/issues/20) must supply or
+validate a portable transport before that architecture can be tested.
 
 ## Disposable Windows packaged-shell preflight
 
@@ -88,8 +88,8 @@ not download, install, launch, persist configuration, uninstall, or delete.
 `readyForDisposableInstall: true` authorizes only the exact shell install in the
 throwaway VM. It is not ready-to-test evidence, a Harness-core identity, or a
 packaged-Desktop pass. Preserve the same `DSH_HOME`, environment, `PATH`, launch
-context, and installer throughout that disposable-VM run, then bind the later
-#9 receipt to the core and plugin revisions actually installed.
+context, and installer throughout that disposable-VM run, then bind the later #9
+receipt to the core and plugin revisions actually installed.
 
 ## Install and mount check
 
@@ -299,8 +299,9 @@ event streams reconnect, the active resources are released, the original draft
 is unchanged, an active SPA switch stops the old Session without `pagehide`,
 and restored or newly mounted lifecycles require fresh disclosure, challenges,
 and Session binding. The receipt records the exact DSH commit/version,
-built-client artifact digest, Web index digest, Chrome, Playwright, OS, and explicit claim
-limits. It uses a fake loopback provider and synthetic Web Audio; it does not
+built-client artifact digest, Web index digest, Chrome, Playwright, OS, and
+explicit claim limits. It uses a fake loopback provider and synthetic Web Audio;
+it does not
 use a real provider credential or credential-backed Qwen, a physical microphone
 or speaker, an OS indicator, or packaged Desktop. Issue #7 remains open until
 another tester independently reproduces an exact-environment result.
@@ -325,8 +326,8 @@ dsh plugin --profile web remove dsh-guarded-live-voice
 Remove any machine-local `guarded-live-voice` override that you added, then
 restart the Web profile. A packaged served-Web shell still needs its own
 restart and uninstall receipt; do not infer that result from a CLI Web-profile
-removal. A `file://` + IPC shell additionally needs the transport work in issue
-#20 before this removal procedure applies.
+removal. A `file://` + IPC shell additionally needs the transport work in
+issue #20 before this removal procedure applies.
 
 ## Report the result
 
