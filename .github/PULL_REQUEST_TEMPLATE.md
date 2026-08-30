@@ -9,6 +9,7 @@ Describe the exact problem and the smallest change that solves it.
 - [ ] I added or updated regression coverage for behavior changes, or
   explained why this is documentation-only.
 - [ ] `pnpm check` passes locally.
+- [ ] Build inputs and generated `lib/` output are staged as one exact candidate.
 - [ ] I ran any relevant packed Harness, browser lifecycle, provider, or device
   smoke and recorded the exact scope below, or marked it not applicable.
 

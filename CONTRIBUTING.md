@@ -109,6 +109,12 @@ in a test, fixture, issue, pull request, recording, screenshot, or log.
 5. Update generated `lib/` artifacts when source or public types change.
 6. Complete the pull-request safety and claim checklist.
 
+After the normal tests and build, the `pnpm check` freshness gate first requires
+source and build-configuration inputs to match the Git index, then compares the
+rebuilt `lib/` outputs with that same index. Before the final run, stage the
+intended source, configuration, and generated outputs or stash unrelated
+build-input edits. Do not bypass the gate or hand-edit bundles.
+
 Do not combine unrelated formatting, dependency, generated-output, and behavior
 changes. Reviewers should be able to establish the exact authority and failure
 surface from the diff.
