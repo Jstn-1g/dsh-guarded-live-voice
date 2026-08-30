@@ -65,11 +65,12 @@ Host and browser builds, package linting, browser-bundle materialization, and a
 dry-run package-content audit. Focused tests are useful while iterating, but the
 complete check is the pull-request baseline.
 
-Five optional smokes cover narrower integration paths:
+Six optional smokes cover narrower integration paths:
 
 ```sh
 pnpm run smoke:harness:fake-qwen
 pnpm run smoke:harness:alpha-auth
+pnpm run smoke:harness:alpha-ipc
 pnpm run smoke:browser:unload
 pnpm run smoke:browser:bfcache
 pnpm run smoke:harness:browser:bfcache
@@ -81,11 +82,12 @@ source. Read [TESTING.md](TESTING.md) and [docs/conformance.md](docs/conformance
 before interpreting a result. The BFCache smoke proves only its standalone
 Chromium path. The final opt-in smoke rebuilds an exact clean Harness checkout
 and drives its shipped `web` profile, but still uses synthetic audio and a fake
-loopback provider. The alpha-auth smoke is restricted to the exact source-built
+loopback provider. Both alpha smokes are restricted to the exact source-built
 `dsh-v0.1.2-alpha.1` tag, which the package admits exactly without inferring a
-later alpha build. None of
-these smokes proves a live provider, physical audio device, packaged Desktop
-path, broad alpha compatibility, or independent BFCache reproduction.
+later alpha build. The IPC proof is test-only, synthetic, and credential-free;
+it does not establish a production carrier or an official integration seam.
+None of these smokes proves a live provider, physical audio device, packaged
+Desktop path, broad alpha compatibility, or independent BFCache reproduction.
 
 Most contributions do not need provider credentials, a microphone, a speaker,
 or a packaged Desktop build. The test suite uses deterministic fakes, and the
