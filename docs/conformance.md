@@ -44,11 +44,12 @@ cleanup receipt before that shell is claimable.
 Harness `dsh-v0.1.2-alpha.1` also documents a packaged Electron model that
 loads the UI over `file://` and carries Fetch through IPC. The current voice
 client rejects non-HTTP(S) pages and its Host side registers only a Web-server
-upgrade, so the IPC model cannot pass the present implementation. [Issue
-#20](https://github.com/Jstn-1g/dsh-live-voice/issues/20) is the prerequisite
-transport task. A served-Web shell receipt must not be promoted into an IPC
-Desktop claim. Portable support for every Desktop carrier is not a v0.3 release
-requirement: the current release decision requires credential-backed Qwen and
+upgrade, so the IPC model cannot pass the present implementation.
+[Issue #20](https://github.com/Jstn-1g/dsh-live-voice/issues/20) is the
+prerequisite transport task. A served-Web shell receipt must not be promoted
+into an IPC Desktop claim. Portable support for every Desktop carrier is not a
+v0.3 release requirement: the current release decision requires
+credential-backed Qwen and
 at least one packaged-client physical-device smoke.
 
 ### Exact-alpha IPC-equivalent feasibility proof

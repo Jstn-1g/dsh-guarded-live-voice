@@ -62,9 +62,10 @@ Provider cancellation and barge-in, continuous turns, browser CSP compatibility,
 packaged served-Web shell behavior, portable `file://` + IPC transport, and
 interruption latency remain deferred. Browser capture/playback still require a
 physical-device packaged-shell smoke; live
-handshake and audio behavior require credentialed functional testing. Provider retention, deletion,
-or residency claims require authoritative provider policy or contractual
-evidence and cannot be inferred from fake tests or successful live connections.
+handshake and audio behavior require credentialed functional testing. Provider
+retention, deletion, or residency claims require authoritative provider policy
+or contractual evidence and cannot be inferred from fake tests or successful
+live connections.
 
 ## Known unresolved boundary
 
