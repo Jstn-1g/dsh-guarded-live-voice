@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync,
 import { createHash, randomUUID } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const EXPECTED_ALPHA_COMMIT = 'cd5ef8148158c3a752a658978873241fdf8e2bbc'
 const EXPECTED_ALPHA_VERSION = '0.1.2-alpha.1'
@@ -41,7 +41,7 @@ const dependencyProvenance = requestedProvenance === FRESH_DEPENDENCY_PROVENANCE
   && process.env.CI === 'true'
   ? FRESH_DEPENDENCY_PROVENANCE
   : 'local-unverified'
-const importBase = normalizeSpecifier(relative(dirname(target), join(pluginRoot, 'src')))
+const importBase = pathToFileURL(join(pluginRoot, 'src')).href
 const source = renderTemplate(readFileSync(template, 'utf8'), importBase)
 const taskTempRoot = realpathSync(tmpdir())
 
@@ -236,11 +236,6 @@ function git(cwd, args) {
 
 function gitStatus() {
   return git(harnessRoot, ['status', '--porcelain=v1', '--untracked-files=all'])
-}
-
-function normalizeSpecifier(path) {
-  const normalized = path.replaceAll('\\', '/')
-  return normalized.startsWith('.') ? normalized : `./${normalized}`
 }
 
 function renderTemplate(source, importBase) {
