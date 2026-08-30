@@ -196,6 +196,16 @@ DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
   pnpm run smoke:harness:alpha-auth
 ```
 
+For a reproducible hosted path, fork or sync this repository, enable Actions in
+the fork, and manually run the
+[`Exact-alpha authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha-auth-proof.yml)
+workflow from the fork's Actions page. It checks out immutable preview.3 and
+the exact alpha commit, installs both frozen lockfiles, runs the complete plugin
+check, produces the official Harness build receipt, and prints only the smoke's
+sanitized result. The workflow requests no secrets; do not add any. A run owned
+by this repository is maintainer repeatability evidence, not the independent
+reproduction requested in [issue #19](https://github.com/Jstn-1g/dsh-live-voice/issues/19).
+
 It requires a real unauthenticated `401`, privately exchanges the launch token
 for the Harness cookie, then exercises the advertised client combo,
 workspace/session RPC, and one fake-provider voice turn. Its sanitized receipt
