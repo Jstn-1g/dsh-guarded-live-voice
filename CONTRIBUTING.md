@@ -86,6 +86,10 @@ loopback provider. Both alpha smokes are restricted to the exact source-built
 `dsh-v0.1.2-alpha.1` tag, which the package admits exactly without inferring a
 later alpha build. The IPC proof is test-only, synthetic, and credential-free;
 it does not establish a production carrier or an official integration seam.
+Fork owners can sync the current repository, enable Actions, and run the manual
+[`Exact-alpha authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha-auth-proof.yml)
+without local setup or secrets. Only a run from an independent account and
+environment can satisfy the independent-reproduction request in issue #19.
 None of these smokes proves a live provider, physical audio device, packaged
 Desktop path, broad alpha compatibility, or independent BFCache reproduction.
 
