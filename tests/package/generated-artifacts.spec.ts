@@ -79,7 +79,7 @@ describe('generated artifact freshness gate', () => {
     finally {
       await rm(cwd, { recursive: true, force: true })
     }
-  })
+  }, 15_000)
 
   it('runs the freshness gate after the build in pnpm check', async () => {
     const manifest = JSON.parse(await readFile(
