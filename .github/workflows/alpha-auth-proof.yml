@@ -63,4 +63,5 @@ jobs:
         working-directory: plugin
         env:
           DSH_HARNESS_ROOT: ${{ github.workspace }}/harness
+          DSH_VOICE_SMOKE_INSTALL_ONLINE: '1'
         run: pnpm run smoke:harness:alpha-auth
