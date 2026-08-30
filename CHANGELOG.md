@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add a separate no-secret hosted proof pinned to immutable preview.4 and exact
+  DSH alpha.2. It validates an exact 40-field sanitized receipt before exposing
+  it in the job summary and one direct JSON artifact. The historical alpha.1
+  workflow remains byte-bound to immutable preview.3.
+
 ## 0.3.0-preview.4
 
 - Add exact DSH `0.1.2-alpha.2` source compatibility without changing the

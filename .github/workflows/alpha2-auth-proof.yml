@@ -1,0 +1,252 @@
+name: Exact-alpha.2 authenticated Web proof
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out immutable DSH Live Voice preview.4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: Jstn-1g/dsh-live-voice
+          ref: db9059ffdc10faceb33434c72fb329203bf9835a # v0.3.0-preview.4
+          path: plugin
+          persist-credentials: false
+
+      - name: Check out exact DSH alpha.2 source and tag
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: deepseek-ai/deepseek-harness
+          ref: 0a53fb55bea101816fa226bb964ae2bed71c343b # dsh-v0.1.2-alpha.2
+          path: harness
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up pnpm 11.7.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 11.7.0
+          run_install: false
+
+      - name: Set up Node 24.12.0
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.12.0
+          cache: pnpm
+          cache-dependency-path: |
+            plugin/pnpm-lock.yaml
+            harness/pnpm-lock.yaml
+
+      - name: Install plugin dependencies from the frozen lockfile
+        working-directory: plugin
+        run: pnpm install --frozen-lockfile
+
+      - name: Install exact-alpha.2 dependencies from the frozen lockfile
+        working-directory: harness
+        run: pnpm install --frozen-lockfile
+
+      - name: Run the complete plugin check
+        working-directory: plugin
+        run: pnpm run check
+
+      - name: Build the exact official Harness profile
+        working-directory: harness
+        run: pnpm run build:official
+
+      - name: Run the authenticated alpha.2 fake-provider composition
+        working-directory: plugin
+        env:
+          DSH_HARNESS_ROOT: ${{ github.workspace }}/harness
+          DSH_VOICE_SMOKE_INSTALL_ONLINE: '1'
+          DSH_VOICE_RECEIPT: ${{ runner.temp }}/dsh-live-voice-alpha2-auth-receipt.json
+        run: |
+          set -euo pipefail
+          raw="$(mktemp "$RUNNER_TEMP/dsh-live-voice-alpha2-auth.XXXXXX")"
+          trap 'rm -f -- "$raw"' EXIT
+          pnpm run smoke:harness:alpha2-auth | tee "$raw"
+          DSH_VOICE_RAW_OUTPUT="$raw" node --input-type=module <<'NODE'
+          import { appendFile, readFile, writeFile } from 'node:fs/promises'
+
+          const raw = await readFile(process.env.DSH_VOICE_RAW_OUTPUT, 'utf8')
+          if (Buffer.byteLength(raw) > 16_384) {
+            throw new Error('alpha2-auth stdout exceeded the receipt bound')
+          }
+
+          const rows = raw.split(/\r?\n/u).map(row => row.trim()).filter(Boolean)
+          const jsonRows = rows.filter(row => row.startsWith('{'))
+          if (jsonRows.length !== 1 || jsonRows[0] !== rows.at(-1)) {
+            throw new Error('alpha2-auth smoke must end with exactly one JSON receipt')
+          }
+
+          const receipt = JSON.parse(jsonRows[0])
+          const allowedKeys = [
+            'alphaRpcEndpoints',
+            'alphaRpcResponsesCorrelated',
+            'authenticatedRootStatus',
+            'clientStatus',
+            'cookieIssued',
+            'credentialBackedQwen',
+            'disclosureAccepted',
+            'dshBuiltFromCleanSource',
+            'dshClientArtifacts',
+            'dshCommit',
+            'dshTag',
+            'dshVersion',
+            'dshWebIndexSha256',
+            'dshWorktreeDirty',
+            'finalAssistantTranscript',
+            'finalUserTranscript',
+            'launchTokenExchanged',
+            'liveCredential',
+            'liveProvider',
+            'officialDshWebProfile',
+            'os',
+            'packagedDesktop',
+            'physicalMicrophone',
+            'physicalSpeaker',
+            'pluginCommit',
+            'pluginTarballSha256',
+            'pluginWorktreeDirty',
+            'providerEvents',
+            'providerInputBytes',
+            'providerOutputBytes',
+            'providerReady',
+            'providerSocketDisposed',
+            'rootStatus',
+            'runtime',
+            'sessionBound',
+            'sourceBuiltOfficialAlpha',
+            'turnStatus',
+            'unauthenticatedVoiceUpgradeStatus',
+            'upgradeOnlyStatus',
+            'workspaceBound',
+          ].sort()
+
+          const actualKeys = Object.keys(receipt).sort()
+          if (JSON.stringify(actualKeys) !== JSON.stringify(allowedKeys)) {
+            throw new Error('alpha2-auth receipt contained an unexpected field')
+          }
+
+          const exactValues = {
+            alphaRpcResponsesCorrelated: true,
+            authenticatedRootStatus: 200,
+            clientStatus: 200,
+            cookieIssued: true,
+            credentialBackedQwen: false,
+            disclosureAccepted: true,
+            dshBuiltFromCleanSource: true,
+            dshCommit: '0a53fb55bea101816fa226bb964ae2bed71c343b',
+            dshTag: 'dsh-v0.1.2-alpha.2',
+            dshVersion: '0.1.2-alpha.2',
+            dshWebIndexSha256: 'd666c73f848b9c4a72501750750194231fa97bdb507f17b8b3bf692fac1eaab9',
+            dshWorktreeDirty: false,
+            finalAssistantTranscript: true,
+            finalUserTranscript: true,
+            launchTokenExchanged: true,
+            liveCredential: false,
+            liveProvider: false,
+            officialDshWebProfile: true,
+            packagedDesktop: false,
+            physicalMicrophone: false,
+            physicalSpeaker: false,
+            pluginCommit: 'db9059ffdc10faceb33434c72fb329203bf9835a',
+            pluginTarballSha256: 'acbe952d55866eb62d6583975ad1626b4800ed76c889a60368ece1d1053cb6bd',
+            pluginWorktreeDirty: false,
+            providerInputBytes: 4,
+            providerOutputBytes: 4,
+            providerReady: true,
+            providerSocketDisposed: true,
+            rootStatus: 200,
+            sessionBound: true,
+            sourceBuiltOfficialAlpha: true,
+            turnStatus: 'completed',
+            unauthenticatedVoiceUpgradeStatus: 401,
+            upgradeOnlyStatus: 404,
+            workspaceBound: true,
+          }
+          for (const [key, expected] of Object.entries(exactValues)) {
+            if (receipt[key] !== expected) {
+              throw new Error(`alpha2-auth receipt field ${key} failed validation`)
+            }
+          }
+
+          const assertJsonEqual = (actual, expected, label) => {
+            if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+              throw new Error(`alpha2-auth receipt ${label} failed validation`)
+            }
+          }
+          assertJsonEqual(
+            receipt.alphaRpcEndpoints,
+            ['workspace/create', 'session/create'],
+            'RPC endpoints',
+          )
+          assertJsonEqual(
+            receipt.providerEvents,
+            [
+              'session.update',
+              'input_audio_buffer.append',
+              'input_audio_buffer.commit',
+              'response.create',
+            ],
+            'provider events',
+          )
+          assertJsonEqual(
+            receipt.dshClientArtifacts,
+            {
+              fileCount: 220,
+              sha256: '2323648b998b9a899ab972ab5ad80c9cf7f87d0ff81c9c9a1dcd0ae6d5eed340',
+            },
+            'client artifacts',
+          )
+          assertJsonEqual(
+            Object.keys(receipt.os ?? {}).sort(),
+            ['platform', 'release'],
+            'OS keys',
+          )
+          assertJsonEqual(
+            receipt.runtime,
+            { node: 'v24.12.0', pnpm: '11.7.0' },
+            'runtime',
+          )
+
+          if (receipt.os.platform !== 'linux'
+            || !/^[A-Za-z0-9._+-]{1,80}$/u.test(receipt.os.release)) {
+            throw new Error('alpha2-auth receipt OS metadata failed validation')
+          }
+
+          const pretty = `${JSON.stringify(receipt, null, 2)}\n`
+          await writeFile(process.env.DSH_VOICE_RECEIPT, pretty, {
+            encoding: 'utf8',
+            flag: 'wx',
+            mode: 0o600,
+          })
+          await appendFile(process.env.GITHUB_STEP_SUMMARY, [
+            '### Exact-alpha.2 authenticated Web proof: PASS',
+            '',
+            '- Scope: source-built authenticated Web profile with a deterministic loopback provider.',
+            '- Not proven: live or credential-backed Qwen, physical audio, BFCache, or packaged Desktop.',
+            '',
+            '<details><summary>Sanitized JSON receipt</summary>',
+            '',
+            '```json',
+            pretty.trimEnd(),
+            '```',
+            '</details>',
+            '',
+          ].join('\n'))
+          NODE
+
+      - name: Upload the sanitized alpha.2 receipt only
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dsh-live-voice-alpha2-auth-receipt.json
+          path: ${{ runner.temp }}/dsh-live-voice-alpha2-auth-receipt.json
+          archive: false
+          if-no-files-found: error
+          retention-days: 30

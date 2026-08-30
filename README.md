@@ -191,16 +191,19 @@ gate before a release candidate or stable release.
 
 For a credential-free contribution, fork or sync this repository, enable
 Actions, and manually run the
-[`Exact-alpha authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha-auth-proof.yml).
+[`Exact-alpha.2 authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha2-auth-proof.yml).
 Then add the independently owned run link and its sanitized JSON receipt to
 [issue #19](https://github.com/Jstn-1g/dsh-live-voice/issues/19). The workflow
-checks immutable preview.3 against the exact supported alpha without a provider
-credential or physical audio devices. Its disposable profile may resolve the
-preview's declared public dependencies from npm; it requests no secrets, so do
-not add any. A successful run exposes the validated receipt in its public job
-summary and as one downloadable JSON file; raw output is not included in that
-artifact. A run owned by this repository is maintainer repeatability evidence,
-not the independent reproduction requested by that issue.
+checks immutable preview.4 against exact alpha.2 without a provider credential
+or physical audio devices. Its disposable profile may resolve the preview's
+declared public dependencies from npm; it requests no secrets, so do not add
+any. A successful run exposes the validated receipt in its public job summary
+and as one downloadable JSON file; raw output is not included in that artifact.
+A run owned by this repository is maintainer repeatability evidence, not the
+independent reproduction requested by that issue. The earlier alpha.1
+[`Exact-alpha authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha-auth-proof.yml)
+remains pinned to immutable preview.3; its historical runs are not rebound to
+preview.4 or alpha.2.
 
 Useful reports are welcome even when they uncover a failure. Use the structured
 [tester report](https://github.com/Jstn-1g/dsh-live-voice/issues/new?template=tester-report.yml)
