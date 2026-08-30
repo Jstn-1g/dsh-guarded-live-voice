@@ -71,8 +71,9 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.client.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "check:scripts": "node --check scripts/check-pack.mjs && node --check scripts/clean.mjs && node --check scripts/preflight-windows-desktop.mjs && node --check scripts/smoke-browser-bfcache.mjs && node --check scripts/smoke-browser-unload.mjs && node --check scripts/smoke-harness-alpha-auth.mjs && node --check scripts/smoke-harness-alpha-ipc.mjs && node --check scripts/smoke-harness-alpha-mode.mjs && node --check scripts/smoke-harness-browser-bfcache.mjs && node --check scripts/smoke-harness-fake-qwen.mjs && node --check scripts/verify-windows-desktop-canary.mjs",
+    "check:scripts": "node --check scripts/check-generated.mjs && node --check scripts/check-pack.mjs && node --check scripts/clean.mjs && node --check scripts/preflight-windows-desktop.mjs && node --check scripts/smoke-browser-bfcache.mjs && node --check scripts/smoke-browser-unload.mjs && node --check scripts/smoke-harness-alpha-auth.mjs && node --check scripts/smoke-harness-alpha-ipc.mjs && node --check scripts/smoke-harness-alpha-mode.mjs && node --check scripts/smoke-harness-browser-bfcache.mjs && node --check scripts/smoke-harness-fake-qwen.mjs && node --check scripts/verify-windows-desktop-canary.mjs",
     "publint": "publint",
+    "check:generated": "node scripts/check-generated.mjs",
     "pack:check": "node scripts/check-pack.mjs",
     "preflight:desktop:windows": "node scripts/preflight-windows-desktop.mjs",
     "smoke:browser:bfcache": "pnpm run build && node scripts/smoke-browser-bfcache.mjs",
@@ -81,7 +82,7 @@
     "smoke:harness:alpha-ipc": "node scripts/smoke-harness-alpha-ipc.mjs",
     "smoke:harness:browser:bfcache": "node scripts/smoke-harness-browser-bfcache.mjs",
     "smoke:harness:fake-qwen": "node scripts/smoke-harness-fake-qwen.mjs",
-    "check": "pnpm run typecheck && pnpm run test && pnpm run check:scripts && pnpm run build && pnpm run publint && pnpm run pack:check",
+    "check": "pnpm run typecheck && pnpm run test && pnpm run check:scripts && pnpm run build && pnpm run check:generated && pnpm run publint && pnpm run pack:check",
     "prepack": "pnpm run build"
   },
   "dependencies": {
