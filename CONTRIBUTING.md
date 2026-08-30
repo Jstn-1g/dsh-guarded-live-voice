@@ -65,11 +65,12 @@ Host and browser builds, package linting, browser-bundle materialization, and a
 dry-run package-content audit. Focused tests are useful while iterating, but the
 complete check is the pull-request baseline.
 
-Six optional smokes cover narrower integration paths:
+Seven optional smokes cover narrower integration paths:
 
 ```sh
 pnpm run smoke:harness:fake-qwen
 pnpm run smoke:harness:alpha-auth
+pnpm run smoke:harness:alpha2-auth
 pnpm run smoke:harness:alpha-ipc
 pnpm run smoke:browser:unload
 pnpm run smoke:browser:bfcache
@@ -82,9 +83,10 @@ source. Read [TESTING.md](TESTING.md) and [docs/conformance.md](docs/conformance
 before interpreting a result. The BFCache smoke proves only its standalone
 Chromium path. The final opt-in smoke rebuilds an exact clean Harness checkout
 and drives its shipped `web` profile, but still uses synthetic audio and a fake
-loopback provider. Both alpha smokes are restricted to the exact source-built
-`dsh-v0.1.2-alpha.1` tag, which the package admits exactly without inferring a
-later alpha build. The IPC proof is test-only, synthetic, and credential-free;
+loopback provider. The authenticated alpha and IPC smokes are restricted to the
+exact source-built `dsh-v0.1.2-alpha.1` tag. The separate alpha.2 smoke is
+restricted to exact `dsh-v0.1.2-alpha.2`; neither path infers a later alpha
+build. The IPC proof is test-only, synthetic, and credential-free;
 it does not establish a production carrier or an official integration seam.
 Fork owners can sync the current repository, enable Actions, and run the manual
 [`Exact-alpha authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha-auth-proof.yml)

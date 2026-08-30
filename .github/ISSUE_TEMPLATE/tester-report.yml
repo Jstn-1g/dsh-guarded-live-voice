@@ -43,14 +43,14 @@ body:
     attributes:
       label: DSH Live Voice version
       description: Use an exact release tag or commit SHA.
-      placeholder: v0.3.0-preview.3
+      placeholder: v0.3.0-preview.4
     validations:
       required: true
   - type: input
     id: harness-version
     attributes:
       label: DeepSeek Harness version
-      placeholder: dsh-v0.1.1-rc.2 or an exact commit SHA
+      placeholder: dsh-v0.1.2-alpha.2 or an exact commit SHA
     validations:
       required: true
   - type: textarea

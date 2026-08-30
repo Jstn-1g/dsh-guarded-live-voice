@@ -96,7 +96,7 @@ receipt to the core and plugin revisions actually installed.
 Install the exact preview into the Web profile:
 
 ```sh
-dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.3
+dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.4
 ```
 
 Restart the Web profile, open a live Session, and inspect the composer tool row.
@@ -179,7 +179,8 @@ DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
   pnpm run smoke:harness:fake-qwen
 ```
 
-Revision boundary: the `v0.3.0-preview.3` source tag includes
+Revision boundary: the `v0.3.0-preview.4` source tag includes the exact-alpha.2
+authenticated composition smoke. The `v0.3.0-preview.3` source tag includes
 `smoke:harness:alpha-auth`, `smoke:browser:bfcache`, and
 `smoke:harness:browser:bfcache`, including the SPA Session-switch regression;
 the `v0.3.0-preview.1` source does not. The
@@ -194,6 +195,15 @@ client build receipt:
 ```sh
 DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
   pnpm run smoke:harness:alpha-auth
+```
+
+For the exact source-built `dsh-v0.1.2-alpha.2` authenticated Web profile, run
+the separately pinned alpha.2 smoke under the same clean-build and receipt
+requirements:
+
+```sh
+DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
+  pnpm run smoke:harness:alpha2-auth
 ```
 
 For a reproducible hosted path, fork or sync this repository, enable Actions in
@@ -215,9 +225,9 @@ It requires a real unauthenticated `401`, privately exchanges the launch token
 for the Harness cookie, then exercises the advertised client combo,
 workspace/session RPC, and one fake-provider voice turn. Its sanitized receipt
 contains no token or cookie. This is exact-tag source-build evidence only. The
-published peer set admits `0.1.2-alpha.1` exactly, not later alpha builds; this
-smoke does not prove credential-backed Qwen, physical audio, BFCache, packaged
-Desktop, or broad alpha compatibility.
+hosted workflow's pinned preview.3 peer set admits `0.1.2-alpha.1` exactly, not
+later alpha builds; this smoke does not prove credential-backed Qwen, physical
+audio, BFCache, packaged Desktop, or broad alpha compatibility.
 
 The test-only IPC-equivalent proof requires clean DSH Live Voice and exact
 `dsh-v0.1.2-alpha.1` (`cd5ef8148158c3a752a658978873241fdf8e2bbc`)

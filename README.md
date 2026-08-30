@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/ci.yml/badge.svg)](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/ci.yml)
 
-[Preview release](https://github.com/Jstn-1g/dsh-live-voice/releases/tag/v0.3.0-preview.3)
+[Preview release](https://github.com/Jstn-1g/dsh-live-voice/releases/tag/v0.3.0-preview.4)
 · [Contributing](CONTRIBUTING.md)
 · [Testing guide](TESTING.md)
 · [No-secret tester task](https://github.com/Jstn-1g/dsh-live-voice/issues/19)
@@ -20,16 +20,16 @@ proven.
 ## Current status
 
 Unless stated otherwise, this section describes the immutable
-`v0.3.0-preview.3` artifact and its tagged source. Later `main` changes are not
+`v0.3.0-preview.4` artifact and its tagged source. Later `main` changes are not
 part of that release. Bind every result to the exact revision that was tested.
 
 ### Runtime support
 
 | Runtime | Status |
 | --- | --- |
-| Shipped DSH `web` profile on v0.1.1-rc.2 | Preview.3 packed fake-provider composition passed. Preview.2 recorded the official Web-profile BFCache receipt; that older receipt is not rebound to this artifact. Physical audio, live Qwen, and independent reproduction remain open. |
-| Exact source-built `dsh-v0.1.2-alpha.1` Web profile | Preview.3 authenticated composition, official Web-profile BFCache, and an active SPA Session switch passed with synthetic audio and a fake provider. Preview.3 admits this exact alpha only; later `main` evidence is not rebound to that artifact. |
-| Exact source-built `dsh-v0.1.2-alpha.2` Web profile | Post-preview.3 `main` passed the authenticated packed-plugin composition smoke with synthetic audio and a fake provider. The explicit peer range admits alpha.2 and rejects unverified later alphas. This is not preview.3 release evidence. |
+| Shipped DSH `web` profile on v0.1.1-rc.2 | Preview.4 packed fake-provider composition passed. Preview.2 recorded the official Web-profile BFCache receipt; that older receipt is not rebound to this artifact. Physical audio, live Qwen, and independent reproduction remain open. |
+| Exact source-built `dsh-v0.1.2-alpha.1` Web profile | Preview.4 authenticated packed-plugin composition passed. Preview.3 recorded official Web-profile BFCache and an active SPA Session switch with synthetic audio and a fake provider; those browser receipts remain bound to preview.3. |
+| Exact source-built `dsh-v0.1.2-alpha.2` Web profile | Preview.4 authenticated packed-plugin composition passed with synthetic audio and a fake provider. The explicit peer range admits alpha.2 and rejects unverified later alphas. |
 | Community packaged shell embedding the served Web profile over HTTP(S) | Structurally compatible candidate, not a pass. The exact Tauri v0.9.3 install/restart/uninstall run is tracked in [issue #9](https://github.com/Jstn-1g/dsh-live-voice/issues/9). |
 | Harness-documented packaged `file://` + Fetch-over-IPC model | Not supported by the current direct WebSocket carrier. A public transport seam or validated Remote redesign is tracked in [issue #20](https://github.com/Jstn-1g/dsh-live-voice/issues/20). |
 
@@ -136,10 +136,10 @@ cookie without entering the receipt, and the authenticated client, workspace,
 Session, and fake-provider voice turn complete. Preview.3 additionally records
 real BFCache restoration and active SPA Session-switch teardown through that
 exact alpha's shipped Web UI. The immutable preview.3 peer range admits only
-this pinned alpha in addition to the existing rc line. Post-preview.3 `main`
-separately admits exact `0.1.2-alpha.2` after a clean source build, coherent
-peer-graph check, and authenticated packed-plugin fake-provider composition
-smoke against upstream commit
+this pinned alpha in addition to the existing rc line. Preview.4 separately
+admits exact `0.1.2-alpha.2` after clean alpha.1 and alpha.2 source builds,
+coherent peer-graph checks, and authenticated packed-plugin fake-provider
+composition smokes. The alpha.2 proof is pinned to upstream commit
 `0a53fb55bea101816fa226bb964ae2bed71c343b`. Neither result establishes later
 or broad alpha compatibility. This is not a marketplace-ready voice product
 and is not “ChatGPT
@@ -173,7 +173,7 @@ The release tag includes prebuilt Host and browser artifacts, so installation
 does not require a source build:
 
 ```sh
-dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.3
+dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.4
 ```
 
 Restart the Web profile after installation. Existing v0.2.0 testers should

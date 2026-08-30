@@ -13,7 +13,7 @@ body:
     attributes:
       label: DSH Live Voice version
       description: Use the exact release tag or commit SHA you installed.
-      placeholder: v0.3.0-preview.3
+      placeholder: v0.3.0-preview.4
     validations:
       required: true
   - type: input
@@ -21,7 +21,7 @@ body:
     attributes:
       label: DeepSeek Harness version
       description: Use the exact release tag or commit SHA when possible.
-      placeholder: dsh-v0.1.2-alpha.1 or an exact commit SHA
+      placeholder: dsh-v0.1.2-alpha.2 or an exact commit SHA
     validations:
       required: true
   - type: textarea
@@ -29,7 +29,7 @@ body:
     attributes:
       label: Installation source and profile
       description: State the release, package, or commit source and the DSH profile where the plugin is installed. Include only non-sensitive configuration shape.
-      placeholder: GitHub release tag v0.3.0-preview.3; web profile; installed with the documented dsh plugin command
+      placeholder: GitHub release tag v0.3.0-preview.4; web profile; installed with the documented dsh plugin command
     validations:
       required: true
   - type: textarea
