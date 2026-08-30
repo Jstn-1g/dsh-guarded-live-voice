@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0-preview.4
+
 - Add exact DSH `0.1.2-alpha.2` source compatibility without changing the
   immutable preview.3 artifact. The development graph now follows the
   alpha.2 package ownership split and Cordis cohort, while retaining an

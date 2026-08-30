@@ -147,12 +147,12 @@ upgrade, exchanges the private launch token in memory, and completes one
 deterministic fake-provider voice turn through the authenticated workspace and
 Session RPC path.
 
-The recorded post-preview.3 `main` run used Node 24.19.0 and pnpm 11.7.0. It
+The recorded preview.4 compatibility run used Node 24.19.0 and pnpm 11.7.0. It
 validated 220 official client artifacts with SHA-256
 `b4eda9de7c289a97164a7f1c7c90f4a3ee3f601ca6c1a90d70ff5e600242a3c4` and a
 Web index with SHA-256
 `d666c73f848b9c4a72501750750194231fa97bdb507f17b8b3bf692fac1eaab9`. This
-evidence belongs to the tested `main` revision, not immutable preview.3. The
+evidence belongs to the tested preview.4 revision, not immutable preview.3. The
 explicit peer range admits alpha.2 but does not admit later alpha versions.
 This smoke does not use credential-backed Qwen, request a physical microphone
 or speaker, inspect an OS device indicator, exercise BFCache, or exercise
