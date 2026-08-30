@@ -17,11 +17,11 @@ current draft. It never submits the composer or runs tools for you.
 Unlike a speech-to-text-only microphone button, the intended experience carries
 native audio in both directions, binds visible consent to the exact live DSH
 Session, and requires a second explicit action before your transcript enters the
-draft. Preview.4 verifies the browser-client behavior with deterministic fakes
-and separately passes authenticated packed-plugin composition in DSH Web with
-synthetic audio and a local fake Qwen provider. Credential-backed Qwen, a
-physical microphone or speaker, and packaged Desktop remain unproven release
-gates.
+draft. Preview.5 adds the explicit, network-free synthetic demo described
+below. Preview.4 separately verifies authenticated packed-plugin composition
+in DSH Web with synthetic audio and a local fake Qwen provider. Credential-
+backed Qwen, a physical microphone or speaker, and packaged Desktop remain
+unproven release gates.
 
 ![Scripted DSH Live Voice synthetic demo: disclosure, local turn, transcripts,
 and explicit draft handoff](assets/dsh-live-voice-synthetic-demo.gif)
