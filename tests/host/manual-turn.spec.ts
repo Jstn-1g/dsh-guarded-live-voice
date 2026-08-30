@@ -5,25 +5,31 @@ import { ManualTurnCoordinator } from '../../src/host/manual-turn.js'
 import type {
   ManualTurnProviderEvent,
   ManualTurnProviderSession,
+  ProviderAuthorization,
+  VoiceProviderId,
 } from '../../src/host/provider.js'
 import { VoiceSessionManager } from '../../src/host/session-manager.js'
 
-function fixture() {
+function fixture(providerId: VoiceProviderId = 'qwen') {
   const identity = { id: 's1' }
   const sessions = new Map<string, unknown>([['s1', identity]])
   const workspaces = [{ id: 'w1', sessionIds: ['s1'] }]
+  const authorization: ProviderAuthorization = providerId === 'qwen'
+    ? { provider: 'qwen', model: 'qwen-audio-3.0-realtime-plus' }
+    : { provider: 'synthetic-demo', model: 'synthetic-demo-v1' }
   const manager = new VoiceSessionManager(
     new AuthorityGuard(
       { get: id => sessions.get(id) },
       { list: () => workspaces },
     ),
     new ConsentChallenges({ token: () => Buffer.alloc(32, 1).toString('base64url') }),
-    async () => ({ provider: 'qwen', model: 'qwen-audio-3.0-realtime-plus' }),
+    async () => authorization,
+    providerId,
   )
   const listeners = new Set<(event: ManualTurnProviderEvent) => void>()
   let closeReason: (reason: Awaited<ManualTurnProviderSession['closed']>) => void = () => {}
   const session: ManualTurnProviderSession = {
-    authorization: { provider: 'qwen', model: 'qwen-audio-3.0-realtime-plus' },
+    authorization,
     closed: new Promise(resolve => { closeReason = resolve }),
     appendPcm16: vi.fn(),
     commit: vi.fn(),
@@ -78,6 +84,24 @@ describe('ManualTurnCoordinator', () => {
     })
     f.coordinator.stop('c1')
     expect(f.session.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('passes synthetic-demo authorization unchanged through the manual-turn boundary', async () => {
+    const f = fixture('synthetic-demo')
+    const begun = f.manager.begin('c1', 's1')
+    expect(begun.provider).toBe('synthetic-demo')
+    await f.manager.acceptConsent('c1', begun.challenge)
+
+    await expect(f.coordinator.start('c1', { event: vi.fn(), failed: vi.fn() })).resolves.toEqual({
+      provider: 'synthetic-demo',
+      model: 'synthetic-demo-v1',
+    })
+    expect(f.openProvider).toHaveBeenCalledWith(
+      { sessionId: 's1', workspaceId: 'w1' },
+      { provider: 'synthetic-demo', model: 'synthetic-demo-v1' },
+      expect.any(AbortSignal),
+    )
+    f.coordinator.stop('c1')
   })
 
   it('revalidates the live object and workspace before every audio operation', async () => {

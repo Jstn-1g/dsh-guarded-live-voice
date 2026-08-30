@@ -10,6 +10,7 @@ import type {
   AuthorizeProvider,
   ManualTurnProviderEvent,
   ManualTurnProviderSession,
+  VoiceProviderId,
 } from '../../src/host/provider.js'
 import { VoiceSessionManager } from '../../src/host/session-manager.js'
 
@@ -39,6 +40,7 @@ interface StartGatewayOptions {
   readonly bindTimeoutMs?: number
   readonly consentTtlMs?: number
   readonly maxConnections?: number
+  readonly provider?: VoiceProviderId
   readonly authorize?: AuthorizeProvider
   readonly openTurn?: OpenManualTurnProvider
 }
@@ -47,11 +49,16 @@ async function startGateway(options: StartGatewayOptions = {}) {
   const session = { id: 's1' }
   const sessions = new Map<string, unknown>([['s1', session]])
   const workspaces = [{ id: 'w1', sessionIds: ['s1'] }]
-  const authorize = options.authorize ?? vi.fn(async () => ({ provider: 'qwen' as const, model: 'qwen-test' }))
+  const provider = options.provider ?? 'qwen'
+  const authorize = options.authorize ?? vi.fn(async () => ({
+    provider,
+    model: provider === 'qwen' ? 'qwen-test' : 'synthetic-demo-v1',
+  }))
   const manager = new VoiceSessionManager(
     new AuthorityGuard({ get: id => sessions.get(id) }, { list: () => workspaces }),
     new ConsentChallenges(options.consentTtlMs === undefined ? {} : { ttlMs: options.consentTtlMs }),
     authorize,
+    provider,
   )
   const warnings: Error[] = []
   const turns = options.openTurn === undefined ? undefined : new ManualTurnCoordinator(manager, options.openTurn)
@@ -115,6 +122,61 @@ describe('GuardedVoiceGateway', () => {
     socket.send('{"v":1,"type":"stop"}')
     await expect(stoppedEvent).resolves.toMatchObject({ type: 'stopped' })
     await expect(didClose).resolves.toBe(1000)
+    expect(manager.size).toBe(0)
+  })
+
+  it('emits only the synthetic disclosure and readiness for synthetic-demo mode', async () => {
+    const { authorize, port } = await startGateway({ provider: 'synthetic-demo' })
+    const socket = connect(port)
+    await opened(socket)
+
+    const disclosureEvent = nextJson(socket)
+    socket.send('{"v":1,"type":"bind","sessionId":"s1"}')
+    const consent = await disclosureEvent
+    expect(consent).toMatchObject({
+      type: 'consent.required',
+      provider: 'synthetic-demo',
+      disclosure: {
+        audioDestination: 'Local deterministic synthetic demo',
+        exportedContext: 'none',
+        executionAuthority: 'none',
+        providerRetention: 'none; no external provider connection',
+        currentMilestone: 'one bounded synthetic demo turn after acceptance',
+      },
+    })
+    expect(authorize).not.toHaveBeenCalled()
+
+    const readyEvent = nextJson(socket)
+    socket.send(JSON.stringify({ v: 1, type: 'consent.accept', challenge: consent.challenge }))
+    await expect(readyEvent).resolves.toMatchObject({
+      type: 'ready',
+      provider: 'synthetic-demo',
+      model: 'synthetic-demo-v1',
+    })
+    expect(authorize).toHaveBeenCalledOnce()
+    socket.close()
+  })
+
+  it('fails closed instead of emitting ready when authorization changes provider', async () => {
+    const authorize: AuthorizeProvider = vi.fn(async () => ({ provider: 'qwen' as const, model: 'qwen-test' }))
+    const { manager, port } = await startGateway({ provider: 'synthetic-demo', authorize })
+    const socket = connect(port)
+    await opened(socket)
+
+    const disclosureEvent = nextJson(socket)
+    socket.send('{"v":1,"type":"bind","sessionId":"s1"}')
+    const consent = await disclosureEvent
+    expect(consent.provider).toBe('synthetic-demo')
+
+    const errorEvent = nextJson(socket)
+    const didClose = closed(socket)
+    socket.send(JSON.stringify({ v: 1, type: 'consent.accept', challenge: consent.challenge }))
+    await expect(errorEvent).resolves.toMatchObject({
+      type: 'error',
+      code: 'invalid-state',
+      message: 'authorized provider does not match the disclosed provider',
+    })
+    await expect(didClose).resolves.toBe(1008)
     expect(manager.size).toBe(0)
   })
 

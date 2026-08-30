@@ -2,7 +2,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { AuthorityGuard } from '../../src/host/authority.js'
 import { ConsentChallenges } from '../../src/host/consent.js'
-import type { AuthorizeProvider } from '../../src/host/provider.js'
+import type { AuthorizeProvider, VoiceProviderId } from '../../src/host/provider.js'
 import { VoiceSessionManager } from '../../src/host/session-manager.js'
 
 const TOKEN = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -23,7 +23,10 @@ interface RealSessionStore {
 /** Keep the host-only runtime import opaque to the client declaration program. */
 const SESSION_RUNTIME_SPECIFIER = ['@deepseek-ai', 'dsh-session'].join('/')
 
-function fixture(authorize: AuthorizeProvider = vi.fn(async () => ({ provider: 'qwen' as const, model: 'qwen-test' }))) {
+function fixture(
+  authorize: AuthorizeProvider = vi.fn(async () => ({ provider: 'qwen' as const, model: 'qwen-test' })),
+  provider: VoiceProviderId = 'qwen',
+) {
   const session = { id: 's1' }
   const sessions = new Map<string, unknown>([['s1', session]])
   const workspaces = [{ id: 'w1', sessionIds: ['s1'] }]
@@ -32,7 +35,7 @@ function fixture(authorize: AuthorizeProvider = vi.fn(async () => ({ provider: '
     { list: () => workspaces },
   )
   const consents = new ConsentChallenges({ token: () => TOKEN })
-  const manager = new VoiceSessionManager(authority, consents, authorize)
+  const manager = new VoiceSessionManager(authority, consents, authorize, provider)
   return { authorize, manager, sessions, session, workspaces, consents }
 }
 
@@ -40,6 +43,7 @@ describe('VoiceSessionManager', () => {
   it('cannot authorize a provider before exact consent', async () => {
     const { authorize, manager } = fixture()
     const begun = manager.begin('c1', 's1')
+    expect(begun.provider).toBe('qwen')
     expect(authorize).not.toHaveBeenCalled()
     expect(() => manager.revalidate('c1')).toThrow(/not ready/u)
 
@@ -47,6 +51,27 @@ describe('VoiceSessionManager', () => {
     expect(authorize).toHaveBeenCalledOnce()
     expect(ready.binding).toEqual({ sessionId: 's1', workspaceId: 'w1' })
     expect(manager.revalidate('c1')).toEqual(ready)
+  })
+
+  it('binds consent and readiness to one immutable configured provider', async () => {
+    const authorizeSynthetic: AuthorizeProvider = vi.fn(async () => ({
+      provider: 'synthetic-demo' as const,
+      model: 'synthetic-demo-v1',
+    }))
+    const synthetic = fixture(authorizeSynthetic, 'synthetic-demo')
+    const begun = synthetic.manager.begin('c1', 's1')
+    expect(begun.provider).toBe('synthetic-demo')
+    await expect(synthetic.manager.acceptConsent('c1', begun.challenge)).resolves.toMatchObject({
+      provider: { provider: 'synthetic-demo', model: 'synthetic-demo-v1' },
+    })
+
+    const mismatched = fixture(undefined, 'synthetic-demo')
+    const mismatchBegin = mismatched.manager.begin('c1', 's1')
+    await expect(mismatched.manager.acceptConsent('c1', mismatchBegin.challenge))
+      .rejects.toThrow(/does not match the disclosed provider/u)
+    expect(mismatched.manager.size).toBe(0)
+
+    expect(() => fixture(undefined, 'other' as VoiceProviderId)).toThrow(/voice provider/u)
   })
 
   it('rejects replay, duplicate binding, and wrong connection consent', async () => {

@@ -1,7 +1,10 @@
 import type { PublicAuthorityBinding } from './authority.js'
+import type { VoiceProviderId } from '../shared/wire.js'
+
+export type { VoiceProviderId } from '../shared/wire.js'
 
 export interface ProviderAuthorization {
-  readonly provider: 'qwen'
+  readonly provider: VoiceProviderId
   readonly model: string
 }
 

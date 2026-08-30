@@ -42,6 +42,7 @@ export function VoicePanel(props: VoicePanelProps) {
 
   const disclosure = voice.disclosure
   if (disclosure === undefined) return null
+  const syntheticDemo = disclosure.provider === 'synthetic-demo'
 
   if (voice.phase === 'authorizing') {
     return (
@@ -58,14 +59,14 @@ export function VoicePanel(props: VoicePanelProps) {
     return (
       <section className={`${css.panel} ${css.panelReady}`} role="status">
         <div className={css.panelHeading}>{t('panel.ready')}</div>
-        <p className={css.detail}>{t('panel.readyDetail')}</p>
+        <p className={css.detail}>{t(syntheticDemo ? 'panel.demoReadyDetail' : 'panel.readyDetail')}</p>
         <p className={css.meta}>{voice.model}</p>
         <div className={css.actions}>
           <button type="button" className={css.secondaryButton} onClick={() => { stopVoice(String(sessionId)) }}>
             {t('control.stop')}
           </button>
           <button type="button" className={css.primaryButton} onClick={() => { beginVoiceCapture(String(sessionId)) }}>
-            {t('panel.record')}
+            {t(syntheticDemo ? 'panel.demoRecord' : 'panel.record')}
           </button>
         </div>
       </section>
@@ -75,8 +76,8 @@ export function VoicePanel(props: VoicePanelProps) {
   if (voice.phase === 'preparing-audio') {
     return (
       <section className={css.panel} role="status">
-        <div className={css.panelHeading}>{t('panel.preparingAudio')}</div>
-        <p className={css.detail}>{t('panel.permissionDetail')}</p>
+        <div className={css.panelHeading}>{t(syntheticDemo ? 'panel.demoPreparingAudio' : 'panel.preparingAudio')}</div>
+        <p className={css.detail}>{t(syntheticDemo ? 'panel.demoPermissionDetail' : 'panel.permissionDetail')}</p>
         <button type="button" className={css.secondaryButton} onClick={() => { stopVoice(String(sessionId)) }}>
           {t('panel.cancel')}
         </button>
@@ -87,14 +88,14 @@ export function VoicePanel(props: VoicePanelProps) {
   if (voice.phase === 'recording') {
     return (
       <section className={`${css.panel} ${css.panelRecording}`} role="status">
-        <div className={css.panelHeading}>{t('panel.recording')}</div>
-        <p className={css.detail}>{t('panel.recordingDetail')}</p>
+        <div className={css.panelHeading}>{t(syntheticDemo ? 'panel.demoRecording' : 'panel.recording')}</div>
+        <p className={css.detail}>{t(syntheticDemo ? 'panel.demoRecordingDetail' : 'panel.recordingDetail')}</p>
         <div className={css.actions}>
           <button type="button" className={css.secondaryButton} onClick={() => { stopVoice(String(sessionId)) }}>
             {t('panel.cancel')}
           </button>
           <button type="button" className={css.primaryButton} onClick={() => { finishVoiceCapture(String(sessionId)) }}>
-            {t('panel.finishTurn')}
+            {t(syntheticDemo ? 'panel.demoFinishTurn' : 'panel.finishTurn')}
           </button>
         </div>
       </section>
@@ -108,7 +109,9 @@ export function VoicePanel(props: VoicePanelProps) {
     return (
       <section className={`${css.panel} ${voice.phase === 'completed' ? css.panelReady : ''}`} role="status">
         <div className={css.panelHeading}>
-          {t(voice.phase === 'completed' ? 'panel.completed' : 'panel.responding')}
+          {t(voice.phase === 'completed'
+            ? 'panel.completed'
+            : syntheticDemo ? 'panel.demoResponding' : 'panel.responding')}
         </div>
         <dl className={css.transcripts}>
           <div>
@@ -170,14 +173,14 @@ export function VoicePanel(props: VoicePanelProps) {
 
   return (
     <section className={css.panel} aria-label={t('panel.title')}>
-      <div className={css.eyebrow}>{t('panel.preview')}</div>
+      <div className={css.eyebrow}>{t(syntheticDemo ? 'panel.demoPreview' : 'panel.preview')}</div>
       <h3 className={css.panelHeading}>{t('panel.title')}</h3>
       <dl className={css.disclosureGrid}>
         <div><dt>{t('panel.destination')}</dt><dd>{disclosure.audioDestination}</dd></div>
         <div><dt>{t('panel.context')}</dt><dd>{t('panel.none')}</dd></div>
         <div><dt>{t('panel.authority')}</dt><dd>{t('panel.proposalOnly')}</dd></div>
-        <div><dt>{t('panel.retention')}</dt><dd>{t('panel.retentionUnknown')}</dd></div>
-        <div><dt>{t('panel.milestone')}</dt><dd>{t('panel.noAudio')}</dd></div>
+        <div><dt>{t('panel.retention')}</dt><dd>{t(syntheticDemo ? 'panel.demoRetention' : 'panel.retentionUnknown')}</dd></div>
+        <div><dt>{t('panel.milestone')}</dt><dd>{t(syntheticDemo ? 'panel.demoMilestone' : 'panel.noAudio')}</dd></div>
       </dl>
       <div className={css.binding}>
         <span>{t('panel.session')}: <code>{voice.sessionId}</code></span>

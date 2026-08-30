@@ -10,7 +10,8 @@ import { guardedVoiceClientBootInjection } from './host/boot.js'
 import { assertTrustedHosts, rejectConnectionUpgrade } from './host/carrier.js'
 import { ConsentChallenges } from './host/consent.js'
 import { GuardedVoiceGateway } from './host/gateway.js'
-import { ManualTurnCoordinator } from './host/manual-turn.js'
+import { ManualTurnCoordinator, type OpenManualTurnProvider } from './host/manual-turn.js'
+import type { AuthorizeProvider } from './host/provider.js'
 import {
   DEFAULT_QWEN_REALTIME_MODEL,
   buildQwenRealtimeEndpoint,
@@ -19,8 +20,14 @@ import {
 } from './host/qwen.js'
 import { VoiceSessionManager } from './host/session-manager.js'
 import { openQwenManualTurn } from './host/qwen-manual-turn.js'
+import {
+  SYNTHETIC_DEMO_MODEL,
+  SYNTHETIC_DEMO_PROVIDER,
+  openSyntheticDemoTurn,
+} from './host/synthetic-demo-turn.js'
 import { CLIENT_BOOT_VERSION, parseGuardedVoiceClientBoot } from './shared/boot.js'
 import { GuardedVoiceError } from './shared/errors.js'
+import type { VoiceProviderId } from './shared/wire.js'
 
 export {
   AuthorityGuard,
@@ -68,10 +75,19 @@ export {
   type OpenQwenManualTurnOptions,
   type QwenManualTurnDependencies,
 } from './host/qwen-manual-turn.js'
+export {
+  SYNTHETIC_DEMO_ASSISTANT_TRANSCRIPT,
+  SYNTHETIC_DEMO_MODEL,
+  SYNTHETIC_DEMO_PROVIDER,
+  SYNTHETIC_DEMO_USER_TRANSCRIPT,
+  openSyntheticDemoTurn,
+  type OpenSyntheticDemoTurnOptions,
+} from './host/synthetic-demo-turn.js'
 export type {
   ManualTurnProviderEvent,
   ManualTurnProviderSession,
   ManualTurnTranscriptRole,
+  ProviderAuthorization,
 } from './host/provider.js'
 export { GuardedVoiceError, type GuardedVoiceErrorCode } from './shared/errors.js'
 export {
@@ -82,6 +98,8 @@ export {
   parseServerControl,
   type ClientControl,
   type ServerControl,
+  type VoiceProviderDisclosure,
+  type VoiceProviderId,
 } from './shared/wire.js'
 export {
   CLIENT_BOOT_GLOBAL,
@@ -91,6 +109,8 @@ export {
 } from './shared/boot.js'
 
 export interface Config {
+  /** Explicit provider. Synthetic demo never contacts Qwen or reads a microphone. */
+  provider?: VoiceProviderId
   /** DSH credential reference, never a credential value. */
   credentialRef?: string
   /** Exact WebSocket path. */
@@ -108,6 +128,7 @@ export interface Config {
 }
 
 export const Config: z<Config> = z.object({
+  provider: z.union(['qwen', 'synthetic-demo'] as const).default('qwen'),
   credentialRef: z.string().default('DASHSCOPE_API_KEY'),
   route: z.string().default('/guarded-voice'),
   model: z.string().default(DEFAULT_QWEN_REALTIME_MODEL),
@@ -137,6 +158,7 @@ function harnessConnectionRejection(ctx: Context, request: IncomingMessage): 401
 
 function resolvedConfig(config: Config = {}): Required<Omit<Config, 'dashscopeWorkspaceId'>> & Pick<Config, 'dashscopeWorkspaceId'> {
   return {
+    provider: config.provider ?? 'qwen',
     credentialRef: config.credentialRef ?? 'DASHSCOPE_API_KEY',
     route: config.route ?? '/guarded-voice',
     model: config.model ?? DEFAULT_QWEN_REALTIME_MODEL,
@@ -162,40 +184,33 @@ export function apply(ctx: Context, input?: Config): void {
   const config = resolvedConfig(input)
   assertRoute(config.route)
   const trustedHosts = parseTrustedHosts(config.trustedHosts)
-  const ref = credentialRef(config.credentialRef)
-  if (!isQwenRealtimeModel(config.model)) {
-    throw new TypeError(`unsupported Qwen realtime model: ${config.model}`)
-  }
-  const model: QwenRealtimeModel = config.model
+  let authorizeProvider: AuthorizeProvider
+  let openProvider: OpenManualTurnProvider
 
-  const authority = new AuthorityGuard(
-    { get: sessionId => ctx.sessions.get(SessionId(sessionId)) },
-    { list: () => ctx.workspaceRegistry.list() },
-  )
-  const manager = new VoiceSessionManager(
-    authority,
-    new ConsentChallenges({ ttlMs: config.consentTtlMs }),
-    async (_binding, signal) => {
+  if (config.provider === 'qwen') {
+    const ref = credentialRef(config.credentialRef)
+    if (!isQwenRealtimeModel(config.model)) {
+      throw new TypeError(`unsupported Qwen realtime model: ${config.model}`)
+    }
+    const model: QwenRealtimeModel = config.model
+    authorizeProvider = async (_binding, signal) => {
       signal.throwIfAborted()
       if (config.dashscopeWorkspaceId === undefined) {
         throw new GuardedVoiceError('provider-unconfigured', 'DashScope workspace id is not configured')
       }
-      // Validate the allowlisted provider endpoint after client-attested
-      // acceptance, before a future transport is allowed to use it.
+      // Validate the allowlisted provider endpoint only after client-attested
+      // acceptance, before the live transport is allowed to use it.
       buildQwenRealtimeEndpoint(config.dashscopeWorkspaceId, model)
       const resolved = await ctx.credentials.resolve(ref)
       signal.throwIfAborted()
       if (resolved === undefined) {
         throw new GuardedVoiceError('provider-unconfigured', 'DashScope credential is not configured')
       }
-      // Do not retain or return resolved.value. The live transport milestone
-      // will resolve again for each provider connection.
+      // Do not retain or return resolved.value. The live transport resolves
+      // again for each provider connection.
       return { provider: 'qwen', model }
-    },
-  )
-  const turns = new ManualTurnCoordinator(
-    manager,
-    async (_binding, authorization, signal) => {
+    }
+    openProvider = async (_binding, authorization, signal) => {
       signal.throwIfAborted()
       if (authorization.provider !== 'qwen' || authorization.model !== model) {
         throw new GuardedVoiceError('provider-unconfigured', 'provider authorization does not match Qwen configuration')
@@ -214,8 +229,36 @@ export function apply(ctx: Context, input?: Config): void {
           return resolved?.value
         },
       })
-    },
+    }
+  } else {
+    authorizeProvider = async (_binding, signal) => {
+      signal.throwIfAborted()
+      return { provider: SYNTHETIC_DEMO_PROVIDER, model: SYNTHETIC_DEMO_MODEL }
+    }
+    openProvider = async (_binding, authorization, signal) => {
+      signal.throwIfAborted()
+      if (authorization.provider !== SYNTHETIC_DEMO_PROVIDER
+        || authorization.model !== SYNTHETIC_DEMO_MODEL) {
+        throw new GuardedVoiceError(
+          'provider-unconfigured',
+          'provider authorization does not match synthetic demo configuration',
+        )
+      }
+      return openSyntheticDemoTurn({ signal })
+    }
+  }
+
+  const authority = new AuthorityGuard(
+    { get: sessionId => ctx.sessions.get(SessionId(sessionId)) },
+    { list: () => ctx.workspaceRegistry.list() },
   )
+  const manager = new VoiceSessionManager(
+    authority,
+    new ConsentChallenges({ ttlMs: config.consentTtlMs }),
+    authorizeProvider,
+    config.provider,
+  )
+  const turns = new ManualTurnCoordinator(manager, openProvider)
   const gateway = new GuardedVoiceGateway({
     manager,
     turns,

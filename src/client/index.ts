@@ -10,6 +10,7 @@ import { VoiceClientController } from './controller.js'
 import type { VoiceInjected } from './contract.js'
 import { en, NS, zh, type VoiceKey } from './locales.js'
 import { bindPageLifecycleCleanup } from './page-lifecycle.js'
+import { SyntheticDemoCapture } from './synthetic-demo-capture.js'
 import { VoiceControlSeat, VoicePanelSeat } from './VoiceSeats.js'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -29,7 +30,9 @@ export function apply(ctx: ClientContext): void {
   const controller = new VoiceClientController({
     route: boot.route,
     audioSink: new BrowserPcmPlaybackSink(),
-    captureFactory: handlers => new BrowserPcmCapture(handlers),
+    captureFactory: (handlers, provider) => provider === 'synthetic-demo'
+      ? new SyntheticDemoCapture(handlers)
+      : new BrowserPcmCapture(handlers),
   })
   const injected = (): VoiceInjected => ({
     hooks: { voice: controller },
