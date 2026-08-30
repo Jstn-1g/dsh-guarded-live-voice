@@ -30,6 +30,8 @@ these are proven:
 - provider output fails closed if the live Session object or Workspace binding
   changes after commit, and post-commit binary frames cannot overtake commit;
 - the one-shot carrier releases its connection slot after terminal completion;
+- a packaged-shell restart proves the old Harness writer has drained and
+  disposed before a replacement can write the same persisted Session;
 - build, packed-install, and current DSH profile smokes pass; and
 - documentation states only behavior demonstrated by those gates.
 
@@ -39,7 +41,15 @@ these are proven:
 DSH Web profile over HTTP(S) can, in principle, reach the current
 `/guarded-voice` WebSocket. [Issue #9](https://github.com/Jstn-1g/dsh-live-voice/issues/9)
 requires an exact install, restart, credential-free mount, uninstall, and
-cleanup receipt before that shell is claimable.
+cleanup receipt before that shell is claimable. That restart receipt must also
+show an ordered, quiescent handoff between Harness instances. The exact alpha's
+JSONL backend supports one live writer per Session; upstream
+[discussion #5103](https://github.com/deepseek-ai/deepseek-harness/discussions/5103)
+and a controlled exact-alpha reproduction show that overlapping backend
+instances that load and write the same Session ID can commit a sequence rollback
+and make the complete Session history fail closed. Live Voice does not repair
+Harness logs, so overlapping writers for one persisted Session remain
+disallowed and any affected log must be backed up before recovery.
 
 Harness `dsh-v0.1.2-alpha.1` also documents a packaged Electron model that
 loads the UI over `file://` and carries Fetch through IPC. The current voice

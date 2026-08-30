@@ -37,6 +37,19 @@ loads `http://127.0.0.1:<port>` proves only that served-Web architecture; it
 does not prove a shell that loads the UI from `file://` and sends Fetch through
 IPC.
 
+Any packaged-shell restart receipt must also prove an ordered, quiescent
+Harness handoff: one DSH backend instance owns each persisted Session at a
+time, and the old instance drains and disposes before its replacement can
+write that Session.
+The exact alpha documents this single-writer limit, and upstream
+[discussion #5103](https://github.com/deepseek-ai/deepseek-harness/discussions/5103)
+records committed sequence rollback that can make an entire Session history
+unloadable. A controlled `dsh-v0.1.2-alpha.1` reproduction confirmed the same
+fail-closed outcome when two JSONL backend instances loaded and wrote the same
+Session ID in a shared root. This is a Harness persistence boundary, not a Live
+Voice repair claim; do not let overlapping Harness instances write the same
+persisted Session, and back up an affected log before attempting recovery.
+
 The v0.2.0 pre-release, published under the former
 `dsh-guarded-live-voice` name, established the browser-side consent surface and
 exact-session Host boundary:
