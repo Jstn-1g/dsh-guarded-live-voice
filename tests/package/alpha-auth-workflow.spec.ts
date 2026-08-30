@@ -29,14 +29,14 @@ describe('exact-alpha authenticated Web proof workflow', () => {
     }
   })
 
-  it('runs frozen checks and the fake-provider smoke without enabling install network', async () => {
+  it('runs frozen checks and explicitly permits the public packed-plugin install', async () => {
     const source = await readFile(WORKFLOW, 'utf8')
 
     expect(source.match(/run: pnpm install --frozen-lockfile/gu)).toHaveLength(2)
     expect(source).toContain('run: pnpm run check')
     expect(source).toContain('run: pnpm run build:official')
     expect(source).toContain('DSH_HARNESS_ROOT: ${{ github.workspace }}/harness')
+    expect(source).toContain("DSH_VOICE_SMOKE_INSTALL_ONLINE: '1'")
     expect(source).toContain('run: pnpm run smoke:harness:alpha-auth')
-    expect(source).not.toContain('DSH_VOICE_SMOKE_INSTALL_ONLINE')
   })
 })
