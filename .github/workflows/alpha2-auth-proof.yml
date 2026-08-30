@@ -197,13 +197,14 @@ jobs:
             'provider events',
           )
           assertJsonEqual(
-            receipt.dshClientArtifacts,
-            {
-              fileCount: 220,
-              sha256: '2323648b998b9a899ab972ab5ad80c9cf7f87d0ff81c9c9a1dcd0ae6d5eed340',
-            },
-            'client artifacts',
+            Object.keys(receipt.dshClientArtifacts ?? {}).sort(),
+            ['fileCount', 'sha256'],
+            'client artifact keys',
           )
+          if (receipt.dshClientArtifacts?.fileCount !== 220
+            || !/^[0-9a-f]{64}$/u.test(receipt.dshClientArtifacts?.sha256 ?? '')) {
+            throw new Error('alpha2-auth receipt client artifacts failed validation')
+          }
           assertJsonEqual(
             Object.keys(receipt.os ?? {}).sort(),
             ['platform', 'release'],

@@ -221,6 +221,13 @@ run owned by this repository is maintainer repeatability evidence, not the
 independent reproduction requested in
 [issue #19](https://github.com/Jstn-1g/dsh-live-voice/issues/19).
 
+Alpha.2's generated client region labels include the absolute checkout root,
+so its aggregate client-artifact digest is scoped to the build environment. The
+hosted validator therefore requires the exact 220-file count and a lowercase
+SHA-256 value while preserving the environment-scoped digest in the receipt; it
+continues to pin the stable Web-index digest exactly. A local receipt can report
+a different aggregate digest while its own official build record self-verifies.
+
 The earlier
 [`Exact-alpha authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha-auth-proof.yml)
 remains pinned to immutable preview.3 and exact alpha.1. Preserve its historical
