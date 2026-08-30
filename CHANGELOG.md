@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Add exact DSH `0.1.2-alpha.2` source compatibility without changing the
+  immutable preview.3 artifact. The development graph now follows the
+  alpha.2 package ownership split and Cordis cohort, while retaining an
+  explicit direct client-store type edge and moving the renderer integration
+  proof away from the removed client-runtime package.
+- Add an authenticated packed-plugin composition smoke pinned to the exact
+  `dsh-v0.1.2-alpha.2` tag and commit. Future alpha versions remain excluded;
+  credential-backed Qwen, physical audio devices, BFCache, and packaged
+  Desktop remain outside this proof.
+
 ## 0.3.0-preview.3
 
 - Fix exact-Session lifecycle isolation during DSH client-side navigation.

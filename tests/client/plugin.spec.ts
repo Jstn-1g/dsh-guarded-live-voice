@@ -1,9 +1,13 @@
 import { Context } from '@deepseek-ai/cordis'
 import * as cordis from '@deepseek-ai/cordis'
-import type { SlotRegistry as OfficialSlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SlotRegistry as OfficialSlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import * as slotCore from '@deepseek-ai/dsh-client-ui-slots'
 import { readFileSync } from 'node:fs'
+import * as react from 'react'
 import { createElement, type ComponentType, useSyncExternalStore } from 'react'
+import * as reactDom from 'react-dom'
+import * as reactDomClient from 'react-dom/client'
+import * as reactJsxRuntime from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as client from '../../src/client/index.js'
@@ -28,7 +32,7 @@ interface ClientHandoff {
 function officialSlotRegistry(): typeof OfficialSlotRegistry {
   let handoff: ClientHandoff | undefined
   const code = readFileSync(new URL(
-    '../../node_modules/@deepseek-ai/dsh-client-runtime/lib/client.js',
+    '../../node_modules/@deepseek-ai/dsh-client-ui-renderer/lib/client.js',
     import.meta.url,
   ), 'utf8')
   const loaderWindow = {
@@ -37,11 +41,15 @@ function officialSlotRegistry(): typeof OfficialSlotRegistry {
     },
   }
   new Function('window', code)(loaderWindow)
-  if (handoff === undefined) throw new Error('official client runtime did not register its factory')
+  if (handoff === undefined) throw new Error('official client UI renderer did not register its factory')
   const exports = handoff.factory(specifier => {
     if (specifier === '@deepseek-ai/cordis') return cordis
     if (specifier === '@deepseek-ai/dsh-client-ui-slots') return slotCore
-    throw new Error(`unexpected official runtime dependency: ${specifier}`)
+    if (specifier === 'react') return react
+    if (specifier === 'react-dom') return reactDom
+    if (specifier === 'react-dom/client') return reactDomClient
+    if (specifier === 'react/jsx-runtime') return reactJsxRuntime
+    throw new Error(`unexpected official renderer dependency: ${specifier}`)
   })
   return exports.SlotRegistry as typeof OfficialSlotRegistry
 }

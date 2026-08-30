@@ -32,6 +32,7 @@ describe('preview package metadata', () => {
   it('uses the renderer owner and admits the source-verified alpha package graph', async () => {
     const manifest = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8')) as {
       dsh?: { client?: { inject?: string[] } }
+      devDependencies?: Record<string, string>
       engines?: { node?: string }
       peerDependencies?: Record<string, string>
     }
@@ -42,13 +43,17 @@ describe('preview package metadata', () => {
     expect(satisfies('24.19.0', manifest.engines?.node ?? '')).toBe(true)
     expect(manifest.dsh?.client?.inject).not.toContain('@deepseek-ai/dsh-client-runtime')
     expect(peers).not.toHaveProperty('@deepseek-ai/dsh-client-runtime')
-    expect(peers['@deepseek-ai/dsh-client-ui-renderer']).toBe('^0.1.1-rc.1 || 0.1.2-alpha.1')
+    expect(manifest.devDependencies).not.toHaveProperty('@deepseek-ai/dsh-client-runtime')
+    expect(manifest.devDependencies?.['@deepseek-ai/dsh-client-store']).toBe('0.1.2-alpha.2')
+    const expectedDshRange = '^0.1.1-rc.1 || 0.1.2-alpha.1 || 0.1.2-alpha.2'
+    expect(peers['@deepseek-ai/dsh-client-ui-renderer']).toBe(expectedDshRange)
     for (const [name, range] of Object.entries(peers)) {
       if (name.startsWith('@deepseek-ai/dsh-')) {
-        expect(range, name).toBe('^0.1.1-rc.1 || 0.1.2-alpha.1')
+        expect(range, name).toBe(expectedDshRange)
         expect(satisfies('0.1.1-rc.2', range), `${name} accepts current rc`).toBe(true)
-        expect(satisfies('0.1.2-alpha.1', range), `${name} accepts verified alpha`).toBe(true)
-        expect(satisfies('0.1.2-alpha.2', range), `${name} rejects unverified later alpha`).toBe(false)
+        expect(satisfies('0.1.2-alpha.1', range), `${name} accepts verified alpha.1`).toBe(true)
+        expect(satisfies('0.1.2-alpha.2', range), `${name} accepts verified alpha.2`).toBe(true)
+        expect(satisfies('0.1.2-alpha.3', range), `${name} rejects unverified future alpha`).toBe(false)
       }
     }
   })
