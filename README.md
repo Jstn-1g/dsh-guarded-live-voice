@@ -17,7 +17,8 @@ current draft. It never submits the composer or runs tools for you.
 Unlike a speech-to-text-only microphone button, the intended experience carries
 native audio in both directions, binds visible consent to the exact live DSH
 Session, and requires a second explicit action before your transcript enters the
-draft. Preview.5 adds the explicit, network-free synthetic demo described
+draft. Preview.5 adds the explicit, credential-free local synthetic demo
+described
 below. Preview.4 separately verifies authenticated packed-plugin composition
 in DSH Web with synthetic audio and a local fake Qwen provider. Credential-
 backed Qwen, a physical microphone or speaker, and packaged Desktop remain
