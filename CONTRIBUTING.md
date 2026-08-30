@@ -89,7 +89,7 @@ restricted to exact `dsh-v0.1.2-alpha.2`; neither path infers a later alpha
 build. The IPC proof is test-only, synthetic, and credential-free;
 it does not establish a production carrier or an official integration seam.
 Fork owners can sync the current repository, enable Actions, and run the manual
-[`Exact-alpha authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha-auth-proof.yml)
+[`Exact-alpha.2 authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha2-auth-proof.yml)
 without local setup or secrets. Only a run from an independent account and
 environment can satisfy the independent-reproduction request in issue #19.
 None of these smokes proves a live provider, physical audio device, packaged

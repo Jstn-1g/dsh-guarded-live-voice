@@ -208,26 +208,33 @@ DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
 
 For a reproducible hosted path, fork or sync this repository, enable Actions in
 the fork, and manually run the
-[`Exact-alpha authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha-auth-proof.yml)
-workflow from the fork's Actions page. It checks out immutable preview.3 and
-the exact alpha commit, installs both frozen lockfiles, runs the complete plugin
-check, produces the official Harness build receipt, and prints only the smoke's
-sanitized result. A successful run also exposes the validated receipt in its
-public job summary and as one downloadable JSON file retained for 30 days; raw
-output is never part of that artifact. The official packed-plugin profile
-install may use the public npm registry to resolve the preview's declared
-dependencies; the workflow requests no secrets, so do not add any. A run owned
-by this repository is maintainer repeatability evidence, not the independent
-reproduction requested in
+[`Exact-alpha.2 authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha2-auth-proof.yml)
+workflow from the fork's Actions page. It checks out immutable preview.4 and
+the exact alpha.2 commit, installs both frozen lockfiles, runs the complete
+plugin check, produces the official Harness build receipt, and prints only the
+smoke's sanitized result. A successful run also exposes the validated receipt
+in its public job summary and as one downloadable JSON file retained for 30
+days; raw output is never part of that artifact. The official packed-plugin
+profile install may use the public npm registry to resolve the preview's
+declared dependencies; the workflow requests no secrets, so do not add any. A
+run owned by this repository is maintainer repeatability evidence, not the
+independent reproduction requested in
 [issue #19](https://github.com/Jstn-1g/dsh-live-voice/issues/19).
 
-It requires a real unauthenticated `401`, privately exchanges the launch token
-for the Harness cookie, then exercises the advertised client combo,
-workspace/session RPC, and one fake-provider voice turn. Its sanitized receipt
-contains no token or cookie. This is exact-tag source-build evidence only. The
-hosted workflow's pinned preview.3 peer set admits `0.1.2-alpha.1` exactly, not
-later alpha builds; this smoke does not prove credential-backed Qwen, physical
-audio, BFCache, packaged Desktop, or broad alpha compatibility.
+The earlier
+[`Exact-alpha authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha-auth-proof.yml)
+remains pinned to immutable preview.3 and exact alpha.1. Preserve its historical
+receipts as evidence for those inputs; do not reinterpret them as preview.4 or
+alpha.2 results.
+
+Each hosted workflow requires a real unauthenticated `401`, privately exchanges
+the launch token for the Harness cookie, then exercises the advertised client
+combo, workspace/session RPC, and one fake-provider voice turn. Its sanitized
+receipt contains no token or cookie. This is exact-tag source-build evidence
+only. The current hosted workflow admits exact alpha.2 and the historical
+preview.3 workflow admits exact alpha.1; neither admits later alpha builds.
+These smokes do not prove credential-backed Qwen, physical audio, BFCache,
+packaged Desktop, or broad alpha compatibility.
 
 The test-only IPC-equivalent proof requires clean DSH Live Voice and exact
 `dsh-v0.1.2-alpha.1` (`cd5ef8148158c3a752a658978873241fdf8e2bbc`)
