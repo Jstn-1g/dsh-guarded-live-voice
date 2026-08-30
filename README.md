@@ -198,10 +198,11 @@ pnpm check
 tests, Host and browser builds, package linting, browser-bundle materialization,
 and a dry-run package-content check.
 
-New contributors can browse the
-[`good first issue`](https://github.com/Jstn-1g/dsh-live-voice/labels/good%20first%20issue)
-and [`help wanted`](https://github.com/Jstn-1g/dsh-live-voice/labels/help%20wanted)
-queues. Read the
+New contributors can browse the open, unassigned
+[`good first issue`](https://github.com/Jstn-1g/dsh-live-voice/issues?q=is%3Aissue+is%3Aopen+no%3Aassignee+label%3A%22good+first+issue%22)
+and [`help wanted`](https://github.com/Jstn-1g/dsh-live-voice/issues?q=is%3Aissue+is%3Aopen+no%3Aassignee+label%3A%22help+wanted%22)
+queues. Comment on an issue before beginning substantial work so its scope and
+ownership are clear. Read the
 [contribution guide](https://github.com/Jstn-1g/dsh-live-voice/blob/main/CONTRIBUTING.md)
 before opening a pull request; it explains the safety invariants, test
 expectations, and paths that do not require provider credentials or physical

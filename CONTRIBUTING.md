@@ -10,9 +10,9 @@ that status until the corresponding release gates are directly proven.
 
 ## Good places to start
 
-- Browse issues labeled
-  [`good first issue`](https://github.com/Jstn-1g/dsh-live-voice/labels/good%20first%20issue)
-  or [`help wanted`](https://github.com/Jstn-1g/dsh-live-voice/labels/help%20wanted).
+- Browse open, unassigned issues labeled
+  [`good first issue`](https://github.com/Jstn-1g/dsh-live-voice/issues?q=is%3Aissue+is%3Aopen+no%3Aassignee+label%3A%22good+first+issue%22)
+  or [`help wanted`](https://github.com/Jstn-1g/dsh-live-voice/issues?q=is%3Aissue+is%3Aopen+no%3Aassignee+label%3A%22help+wanted%22).
 - Submit a structured
   [tester report](https://github.com/Jstn-1g/dsh-live-voice/issues/new?template=tester-report.yml)
   for a specific install, browser, provider, device, BFCache, or packaged-
