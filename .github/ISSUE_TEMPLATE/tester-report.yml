@@ -14,6 +14,7 @@ body:
       label: Test scope
       options:
         - GitHub-tag installation and startup
+        - Zero-credential synthetic demo
         - Deterministic or fake-provider path
         - Browser lifecycle and teardown
         - Credential-backed Qwen roundtrip
@@ -43,7 +44,7 @@ body:
     attributes:
       label: DSH Live Voice version
       description: Use an exact release tag or commit SHA.
-      placeholder: v0.3.0-preview.4
+      placeholder: v0.3.0-preview.5
     validations:
       required: true
   - type: input
@@ -88,6 +89,31 @@ body:
     attributes:
       label: Exact procedure
       description: Provide reproducible steps and any non-secret configuration shape.
+    validations:
+      required: true
+  - type: dropdown
+    id: furthest-stage
+    attributes:
+      label: Furthest setup stage reached
+      description: Select the last stage that worked. This helps maintainers measure setup conversion instead of traffic.
+      options:
+        - Install command not started
+        - Install command started
+        - Profile restarted
+        - Microphone control appeared
+        - Disclosure opened
+        - Synthetic turn started
+        - Response and transcripts appeared
+        - Transcript placed into draft
+        - Full test completed
+    validations:
+      required: true
+  - type: textarea
+    id: stopping-point
+    attributes:
+      label: Where did you stop or hesitate?
+      description: If you completed the path, enter Completed and note the least-clear step. Do not include private data.
+      placeholder: The exact visible step, confusing wording, or sanitized error that stopped you
     validations:
       required: true
   - type: dropdown

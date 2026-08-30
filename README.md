@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/ci.yml/badge.svg)](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/ci.yml)
 
-[Preview release](https://github.com/Jstn-1g/dsh-live-voice/releases/tag/v0.3.0-preview.4)
+[Preview release](https://github.com/Jstn-1g/dsh-live-voice/releases/tag/v0.3.0-preview.5)
 · [Contributing](CONTRIBUTING.md)
 · [Testing guide](TESTING.md)
 · [No-secret tester task](https://github.com/Jstn-1g/dsh-live-voice/issues/19)
@@ -23,10 +23,38 @@ synthetic audio and a local fake Qwen provider. Credential-backed Qwen, a
 physical microphone or speaker, and packaged Desktop remain unproven release
 gates.
 
+![Scripted DSH Live Voice synthetic demo: disclosure, local turn, transcripts,
+and explicit draft handoff](assets/dsh-live-voice-synthetic-demo.gif)
+
+_Scripted deterministic UI walkthrough with fixed synthetic audio and
+transcripts. It uses no Qwen credential or external provider and does not prove
+physical audio I/O or packaged Desktop.
+[Watch the 24-second MP4](assets/dsh-live-voice-synthetic-demo.mp4)._
+
+## Two-minute synthetic test
+
+Requirements: a DSH Web profile, Chrome or Edge, and a disposable test profile
+or environment. No Qwen credential or microphone permission is needed.
+
+```sh
+dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.5
+```
+
+Restart the Web profile and open a live Session. The microphone icon appears in
+the composer control row with the label **Open DSH Live Voice**. Open it and
+confirm the destination says **Local deterministic synthetic demo**. Continue,
+start the synthetic demo, finish the turn, and expect two fixed synthetic
+transcripts plus a short chime. **Use my transcript as draft** changes only the
+current draft; it does not submit it.
+
+```sh
+dsh plugin --profile web remove dsh-live-voice
+```
+
 ## Current status
 
 Unless stated otherwise, this section describes the immutable
-`v0.3.0-preview.4` artifact and its tagged source. Later `main` changes are not
+`v0.3.0-preview.5` artifact and its tagged source. Later `main` changes are not
 part of that release. Bind every result to the exact revision that was tested.
 
 ### Runtime support
@@ -35,7 +63,7 @@ part of that release. Bind every result to the exact revision that was tested.
 | --- | --- |
 | Shipped DSH `web` profile on v0.1.1-rc.2 | Preview.4 packed fake-provider composition passed. Preview.2 recorded the official Web-profile BFCache receipt; that older receipt is not rebound to this artifact. Physical audio, live Qwen, and independent reproduction remain open. |
 | Exact source-built `dsh-v0.1.2-alpha.1` Web profile | Preview.4 authenticated packed-plugin composition passed. Preview.3 recorded official Web-profile BFCache and an active SPA Session switch with synthetic audio and a fake provider; those browser receipts remain bound to preview.3. |
-| Exact source-built `dsh-v0.1.2-alpha.2` Web profile | Preview.4 authenticated packed-plugin composition passed with synthetic audio and a fake provider. The explicit peer range admits alpha.2 and rejects unverified later alphas. |
+| Exact source-built `dsh-v0.1.2-alpha.2` Web profile | Preview.5 packed installation passed using its bundled synthetic provider: authenticated Workspace/Session RPC, exact disclosure, fixed transcripts, bounded chime, disposal, no credential, and no external provider server. The explicit fake-Qwen path also passed. Physical audio, live Qwen, BFCache, and later alphas remain unproven. |
 | Community packaged shell embedding the served Web profile over HTTP(S) | Structurally compatible candidate, not a pass. The exact Tauri v0.9.3 install/restart/uninstall run is tracked in [issue #9](https://github.com/Jstn-1g/dsh-live-voice/issues/9). |
 | Harness-documented packaged `file://` + Fetch-over-IPC model | Not supported by the current direct WebSocket carrier. A public transport seam or validated Remote redesign is tracked in [issue #20](https://github.com/Jstn-1g/dsh-live-voice/issues/20). |
 
@@ -147,7 +175,10 @@ admits exact `0.1.2-alpha.2` after clean alpha.1 and alpha.2 source builds,
 coherent peer-graph checks, and authenticated packed-plugin fake-provider
 composition smokes. The alpha.2 proof is pinned to upstream commit
 `0a53fb55bea101816fa226bb964ae2bed71c343b`. Neither result establishes later
-or broad alpha compatibility. This is not a marketplace-ready voice product
+or broad alpha compatibility. Preview.5 separately installs its bundled
+synthetic provider through the official CLI into exact alpha.2 and completes
+the authenticated gateway turn without a credential, Qwen transport shim, or
+external provider server. This is not a marketplace-ready voice product
 and is not “ChatGPT
 Live parity.” DSH Live Voice is the product name; the guarded consent and
 authority model remains its security architecture.
@@ -160,8 +191,10 @@ a human or resist a malicious same-user local process.
 
 ## Safety boundary
 
-Only PCM supplied through the bounded browser-controller seam after accepted
-disclosure can reach Qwen. No DSH history, files, workspace instructions,
+The bundled synthetic demo uses fixed in-process content and never connects to
+Qwen. When `provider: qwen` is explicitly configured, only PCM supplied through
+the bounded browser-controller seam after accepted disclosure can reach Qwen.
+No DSH history, files, workspace instructions,
 memory, arbitrary text, system instruction, or tool schema crosses that
 boundary. The final user transcript can become an ordinary composer draft only
 through an explicit button, an exact-current-Session recheck, the opaque
@@ -179,7 +212,7 @@ The release tag includes prebuilt Host and browser artifacts, so installation
 does not require a source build:
 
 ```sh
-dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.4
+dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.5
 ```
 
 Restart the Web profile after installation. Existing v0.2.0 testers should
@@ -189,14 +222,27 @@ hidden browser protocol/composition keys remain stable for this transition so
 existing profiles and mixed cached bundles do not silently duplicate or stop
 matching the plugin.
 
-This preview has deterministic and packed fake-provider coverage but still
-requires the live-provider and physical-device checks tracked in the release
-gate before a release candidate or stable release.
+The installed row explicitly starts in local `synthetic-demo` mode. It does not
+silently fall back from Qwen. Credential-backed Qwen requires the explicit
+development configuration below and still needs the live-provider and
+physical-device checks tracked in the release gate before a release candidate
+or stable release.
 
 ## Help validate the preview
 
-For a credential-free contribution, fork or sync this repository, enable
-Actions, and manually run the
+We need five founding testers using Windows with Chrome or Edge. Install
+Preview.5 in a disposable Web profile, run the two-minute synthetic test above,
+and submit the structured
+[tester report](https://github.com/Jstn-1g/dsh-live-voice/issues/new?template=tester-report.yml),
+including the last setup stage you reached and where you hesitated or stopped.
+No credential, recording, real transcript, Session id, or private log should be
+shared. Useful reports will be credited in the release notes and contributors
+section with the tester's consent. The
+[adoption measurement](docs/adoption.md) counts completed external outcomes and
+explicit stopping points, not clones or asset downloads.
+
+For a separate credential-free compatibility contribution, fork or sync this
+repository, enable Actions, and manually run the
 [`Exact-alpha.2 authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha2-auth-proof.yml).
 Then add the independently owned run link and its sanitized JSON receipt to
 [issue #19](https://github.com/Jstn-1g/dsh-live-voice/issues/19). The workflow
@@ -211,10 +257,9 @@ independent reproduction requested by that issue. The earlier alpha.1
 remains pinned to immutable preview.3; its historical runs are not rebound to
 preview.4 or alpha.2.
 
-Useful reports are welcome even when they uncover a failure. Use the structured
-[tester report](https://github.com/Jstn-1g/dsh-live-voice/issues/new?template=tester-report.yml)
-for install, browser, provider, physical-device, BFCache, or exact packaged
-shell results. Follow the
+Useful reports are welcome even when they uncover a failure. The same form also
+accepts provider, physical-device, BFCache, or exact packaged-shell results.
+Follow the
 [testing guide](https://github.com/Jstn-1g/dsh-live-voice/blob/main/TESTING.md),
 then include the exact release or commit, DSH version, platform, browser,
 steps, and sanitized evidence. Never attach credentials, recordings, private
@@ -240,6 +285,10 @@ pnpm check
 tests, Host and browser builds, package linting, browser-bundle materialization,
 and a dry-run package-content check.
 
+`pnpm run demo:capture` regenerates the scripted walkthrough locally with
+Chrome, FFmpeg, and FFprobe. It blocks external browser requests and verifies
+the current synthetic UI copy before replacing the GIF and MP4.
+
 New contributors can browse the open, unassigned
 [`good first issue`](https://github.com/Jstn-1g/dsh-live-voice/issues?q=is%3Aissue+is%3Aopen+no%3Aassignee+label%3A%22good+first+issue%22)
 and [`help wanted`](https://github.com/Jstn-1g/dsh-live-voice/issues?q=is%3Aissue+is%3Aopen+no%3Aassignee+label%3A%22help+wanted%22)
@@ -253,13 +302,15 @@ audio hardware.
 ## Development configuration
 
 The bundle inserts the compatibility-stable `guarded-live-voice` Cordis row
-with the `dsh-live-voice` package name. A profile override will
-need an Alibaba Cloud Model Studio workspace id before provider authorization:
+with the `dsh-live-voice` package name and explicit `synthetic-demo` provider.
+To use Qwen, a profile override must select `qwen` and provide an Alibaba Cloud
+Model Studio workspace id before provider authorization:
 
 ```yaml
 - id: guarded-live-voice
   name: dsh-live-voice
   config:
+    provider: qwen
     credentialRef: DASHSCOPE_API_KEY
     dashscopeWorkspaceId: your-workspace-id
     model: qwen-audio-3.0-realtime-plus

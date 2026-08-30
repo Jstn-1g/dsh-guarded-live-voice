@@ -6,6 +6,30 @@ export declare const MAX_ERROR_CODE_LENGTH = 64;
 export declare const MAX_ERROR_MESSAGE_LENGTH = 2048;
 export declare const MAX_TRANSCRIPT_LENGTH = 4096;
 export declare const CHALLENGE_PATTERN: RegExp;
+export type VoiceProviderId = 'qwen' | 'synthetic-demo';
+declare const QWEN_DISCLOSURE: Readonly<{
+    readonly audioDestination: "Alibaba Cloud Qwen realtime API";
+    readonly exportedContext: "none";
+    readonly executionAuthority: "none";
+    readonly providerRetention: "not specified for Qwen realtime audio";
+    readonly currentMilestone: "one bounded manual audio turn after acceptance";
+}>;
+declare const SYNTHETIC_DEMO_DISCLOSURE: Readonly<{
+    readonly audioDestination: "Local deterministic synthetic demo";
+    readonly exportedContext: "none";
+    readonly executionAuthority: "none";
+    readonly providerRetention: "none; no external provider connection";
+    readonly currentMilestone: "one bounded synthetic demo turn after acceptance";
+}>;
+export type VoiceProviderDisclosure = {
+    readonly provider: 'qwen';
+    readonly disclosure: typeof QWEN_DISCLOSURE;
+} | {
+    readonly provider: 'synthetic-demo';
+    readonly disclosure: typeof SYNTHETIC_DEMO_DISCLOSURE;
+};
+/** Keep the disclosed destination inseparable from the configured provider id. */
+export declare function voiceProviderDisclosure(provider: VoiceProviderId): VoiceProviderDisclosure;
 export interface BindControl {
     readonly v: typeof WIRE_VERSION;
     readonly type: 'bind';
@@ -25,28 +49,21 @@ export interface TurnCommitControl {
     readonly type: 'turn.commit';
 }
 export type ClientControl = BindControl | ConsentAcceptControl | TurnCommitControl | StopControl;
-export interface ConsentRequiredEvent {
+interface ConsentRequiredEventBase {
     readonly v: typeof WIRE_VERSION;
     readonly type: 'consent.required';
     readonly challenge: string;
     readonly expiresAt: number;
     readonly sessionId: string;
     readonly workspaceId: string;
-    readonly provider: 'qwen';
-    readonly disclosure: {
-        readonly audioDestination: 'Alibaba Cloud Qwen realtime API';
-        readonly exportedContext: 'none';
-        readonly executionAuthority: 'none';
-        readonly providerRetention: 'not specified for Qwen realtime audio';
-        readonly currentMilestone: 'one bounded manual audio turn after acceptance';
-    };
 }
+export type ConsentRequiredEvent = ConsentRequiredEventBase & VoiceProviderDisclosure;
 export interface ReadyEvent {
     readonly v: typeof WIRE_VERSION;
     readonly type: 'ready';
     readonly sessionId: string;
     readonly workspaceId: string;
-    readonly provider: 'qwen';
+    readonly provider: VoiceProviderId;
     readonly model: string;
     readonly authority: 'proposal-only';
 }
@@ -81,3 +98,4 @@ export declare function parseClientControl(raw: string): ClientControl;
 export declare function encodeServerControl(event: ServerControl): string;
 /** Parse one Host control event in the browser with an exact, fail-closed schema. */
 export declare function parseServerControl(raw: string): ServerControl;
+export {};

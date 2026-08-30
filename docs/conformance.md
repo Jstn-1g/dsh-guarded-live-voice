@@ -158,6 +158,19 @@ This smoke does not use credential-backed Qwen, request a physical microphone
 or speaker, inspect an OS device indicator, exercise BFCache, or exercise
 packaged Desktop.
 
+`pnpm run smoke:harness:alpha2-synthetic-demo` is the separate exact-alpha.2
+zero-credential path. The official CLI installs the packed plugin into a
+disposable authenticated Web profile while retaining the bundle's explicit
+`provider: synthetic-demo` row. The proof creates a real Workspace and Session,
+consumes the exact provider-bound disclosure, sends one bounded PCM frame, and
+requires the fixed transcripts, one 4,800-byte deterministic chime, completed
+terminal event, and provider/gateway disposal. It creates no Qwen shim or fake
+provider server and configures no credential.
+
+This proves the packed in-process demo on that exact served-Web alpha.2
+composition. It does not prove a physical microphone or speaker, BFCache,
+packaged Desktop, credential-backed Qwen, a live provider, or any later alpha.
+
 ## Controlled Chromium raw-unload smoke
 
 `pnpm run smoke:browser:unload` builds the current client bundle and starts a

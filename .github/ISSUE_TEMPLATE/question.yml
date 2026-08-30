@@ -13,7 +13,7 @@ body:
     attributes:
       label: DSH Live Voice version
       description: Use the exact release tag or commit SHA you installed.
-      placeholder: v0.3.0-preview.4
+      placeholder: v0.3.0-preview.5
     validations:
       required: true
   - type: input
@@ -29,7 +29,7 @@ body:
     attributes:
       label: Installation source and profile
       description: State the release, package, or commit source and the DSH profile where the plugin is installed. Include only non-sensitive configuration shape.
-      placeholder: GitHub release tag v0.3.0-preview.4; web profile; installed with the documented dsh plugin command
+      placeholder: GitHub release tag v0.3.0-preview.5; web profile; installed with the documented dsh plugin command
     validations:
       required: true
   - type: textarea
