@@ -124,6 +124,8 @@ const required = [
   'LICENSE',
   'README.md',
   'SECURITY.md',
+  'assets/dsh-live-voice-synthetic-demo.gif',
+  'assets/dsh-live-voice-synthetic-demo.mp4',
   'cordis.patch.yml',
   'lib/index.js',
   'lib/index.d.ts',

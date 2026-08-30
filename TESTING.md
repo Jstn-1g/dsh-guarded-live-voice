@@ -100,7 +100,7 @@ dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.5
 ```
 
 Restart the Web profile, open a live Session, and inspect the composer tool row.
-The microphone control should be labeled **Open DSH Live Voice**. Opening it
+The voice control should be labeled **Open DSH Live Voice**. Opening it
 should show a disclosure panel for **Local deterministic synthetic demo**, with
 the exported Harness context, execution authority, retention status, Session,
 Workspace, and expiry.

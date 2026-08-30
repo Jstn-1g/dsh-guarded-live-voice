@@ -99,8 +99,9 @@ body:
       options:
         - Install command not started
         - Install command started
+        - Install completed
         - Profile restarted
-        - Microphone control appeared
+        - Open DSH Live Voice control appeared
         - Disclosure opened
         - Synthetic turn started
         - Response and transcripts appeared

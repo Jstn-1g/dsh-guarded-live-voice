@@ -14,9 +14,10 @@ release and environment that produced it.
 | Setup abandonment | A tester records the last successful stage and stopping point | Failure of later stages that were never attempted |
 
 The structured tester form records the conversion stages: install started,
-profile restarted, control visible, disclosure opened, synthetic turn started,
-response visible, transcript placed into the draft, and full completion.
-Passing and failing reports are both useful.
+install completed, profile restarted, **Open DSH Live Voice** control visible,
+disclosure opened, synthetic turn started, response visible, transcript placed
+into the draft, and full completion. Passing and failing reports are both
+useful.
 
 Do not publish credentials, recordings, real transcripts, Session identifiers,
 workspace content, launch tokens, cookies, personal data, or identifying logs.

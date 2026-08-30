@@ -59,6 +59,10 @@ part of that release. Bind every result to the exact revision that was tested.
 
 ### Runtime support
 
+Every row names the immutable artifact that produced its evidence. An older
+Preview.4 result remains evidence only for Preview.4; it is not rebound to
+Preview.5 by appearing in this release's documentation.
+
 | Runtime | Status |
 | --- | --- |
 | Shipped DSH `web` profile on v0.1.1-rc.2 | Preview.4 packed fake-provider composition passed. Preview.2 recorded the official Web-profile BFCache receipt; that older receipt is not rebound to this artifact. Physical audio, live Qwen, and independent reproduction remain open. |
@@ -287,7 +291,8 @@ and a dry-run package-content check.
 
 `pnpm run demo:capture` regenerates the scripted walkthrough locally with
 Chrome, FFmpeg, and FFprobe. It blocks external browser requests and verifies
-the current synthetic UI copy before replacing the GIF and MP4.
+key synthetic UI labels plus the fixed transcripts before replacing the GIF
+and MP4.
 
 New contributors can browse the open, unassigned
 [`good first issue`](https://github.com/Jstn-1g/dsh-live-voice/issues?q=is%3Aissue+is%3Aopen+no%3Aassignee+label%3A%22good+first+issue%22)
