@@ -9,6 +9,7 @@ const README = new URL('../../README.md', import.meta.url)
 const TESTING = new URL('../../TESTING.md', import.meta.url)
 const PLUGIN_COMMIT = 'db9059ffdc10faceb33434c72fb329203bf9835a'
 const HARNESS_COMMIT = '0a53fb55bea101816fa226bb964ae2bed71c343b'
+const WSL_CLIENT_SHA = '2323648b998b9a899ab972ab5ad80c9cf7f87d0ff81c9c9a1dcd0ae6d5eed340'
 const RECEIPT = {
   rootStatus: 200,
   clientStatus: 200,
@@ -31,7 +32,7 @@ const RECEIPT = {
   dshBuiltFromCleanSource: true,
   dshClientArtifacts: {
     fileCount: 220,
-    sha256: '2323648b998b9a899ab972ab5ad80c9cf7f87d0ff81c9c9a1dcd0ae6d5eed340',
+    sha256: '95960c93ea46130e04dbd4d9e73427c45bcc1ff1f813de58a44747f5cb6443a1',
   },
   dshCommit: HARNESS_COMMIT,
   dshTag: 'dsh-v0.1.2-alpha.2',
@@ -149,6 +150,22 @@ describe('exact-alpha.2 authenticated Web proof workflow', () => {
     expect(source).not.toMatch(/^\s*path:\s*.*(?:raw|stdout|\.log)/mu)
   })
 
+  it('preserves a valid environment-scoped client digest', async () => {
+    const source = await readFile(WORKFLOW, 'utf8')
+    const environmentScoped = {
+      ...RECEIPT,
+      dshClientArtifacts: { fileCount: 220, sha256: WSL_CLIENT_SHA },
+    }
+    const { receipt, result, summary } = await runValidator(source, [
+      '$ node scripts/smoke-harness-alpha2-auth.mjs',
+      JSON.stringify(environmentScoped),
+    ])
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(receipt ?? '')).toEqual(environmentScoped)
+    expect(summary).toContain(WSL_CLIENT_SHA)
+  })
+
   it('rejects unsafe, widened, malformed, or unexpected receipts', async () => {
     const source = await readFile(WORKFLOW, 'utf8')
     const banner = '$ node scripts/smoke-harness-alpha2-auth.mjs'
@@ -156,6 +173,18 @@ describe('exact-alpha.2 authenticated Web proof workflow', () => {
       [banner, JSON.stringify({ ...RECEIPT, sessionId: 'must-not-publish' })],
       [banner, JSON.stringify({ ...RECEIPT, liveProvider: true })],
       [banner, JSON.stringify({ ...RECEIPT, pluginCommit: '0'.repeat(40) })],
+      [banner, JSON.stringify({
+        ...RECEIPT,
+        dshClientArtifacts: { fileCount: 219, sha256: RECEIPT.dshClientArtifacts.sha256 },
+      })],
+      [banner, JSON.stringify({
+        ...RECEIPT,
+        dshClientArtifacts: { fileCount: 220, sha256: 'g'.repeat(64) },
+      })],
+      [banner, JSON.stringify({
+        ...RECEIPT,
+        dshClientArtifacts: { ...RECEIPT.dshClientArtifacts, path: '/private' },
+      })],
       [banner, JSON.stringify({ ...RECEIPT, os: { platform: 'linux', release: '\n```' } })],
       [banner, '{malformed'],
       [banner, JSON.stringify(RECEIPT), JSON.stringify(RECEIPT)],
