@@ -179,8 +179,10 @@ Then add the independently owned run link and its sanitized JSON receipt to
 checks immutable preview.3 against the exact supported alpha without a provider
 credential or physical audio devices. Its disposable profile may resolve the
 preview's declared public dependencies from npm; it requests no secrets, so do
-not add any. A run owned by this repository is maintainer repeatability
-evidence, not the independent reproduction requested by that issue.
+not add any. A successful run exposes the validated receipt in its public job
+summary and as one downloadable JSON file; raw output is not included in that
+artifact. A run owned by this repository is maintainer repeatability evidence,
+not the independent reproduction requested by that issue.
 
 Useful reports are welcome even when they uncover a failure. Use the structured
 [tester report](https://github.com/Jstn-1g/dsh-live-voice/issues/new?template=tester-report.yml)
