@@ -26,6 +26,12 @@ describe('ConsentChallenges', () => {
     challenges.issue(subject)
     expect(() => challenges.consume(TOKEN_A, { ...subject, sessionId: 's2' })).toThrow(/different binding/u)
     expect(() => challenges.consume(TOKEN_A, subject)).toThrow(/unknown or already used/u)
+
+    const providerBound = new ConsentChallenges({ token: () => TOKEN_B })
+    providerBound.issue(subject)
+    expect(() => providerBound.consume(TOKEN_B, { ...subject, provider: 'synthetic-demo' }))
+      .toThrow(/different binding/u)
+    expect(() => providerBound.consume(TOKEN_B, subject)).toThrow(/unknown or already used/u)
   })
 
   it('expires, revokes, and sweeps challenges deterministically', () => {

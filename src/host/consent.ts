@@ -1,12 +1,13 @@
 import { randomBytes } from 'node:crypto'
 import { GuardedVoiceError } from '../shared/errors.js'
 import { CHALLENGE_PATTERN } from '../shared/wire.js'
+import type { VoiceProviderId } from './provider.js'
 
 export interface ConsentSubject {
   readonly connectionId: string
   readonly sessionId: string
   readonly workspaceId: string
-  readonly provider: 'qwen'
+  readonly provider: VoiceProviderId
 }
 
 export interface ConsentChallenge {

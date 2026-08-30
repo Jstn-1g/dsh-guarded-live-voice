@@ -1,12 +1,14 @@
+import { type VoiceProviderId } from '../shared/wire.js';
 export type VoiceClientPhase = 'idle' | 'connecting' | 'awaiting-consent' | 'authorizing' | 'ready' | 'preparing-audio' | 'recording' | 'responding' | 'completed' | 'error';
 export interface VoiceDisclosureView {
     readonly expiresAt: number;
     readonly workspaceId: string;
-    readonly audioDestination: 'Alibaba Cloud Qwen realtime API';
+    readonly provider: VoiceProviderId;
+    readonly audioDestination: 'Alibaba Cloud Qwen realtime API' | 'Local deterministic synthetic demo';
     readonly exportedContext: 'none';
     readonly executionAuthority: 'none';
-    readonly providerRetention: 'not specified for Qwen realtime audio';
-    readonly currentMilestone: 'one bounded manual audio turn after acceptance';
+    readonly providerRetention: 'not specified for Qwen realtime audio' | 'none; no external provider connection';
+    readonly currentMilestone: 'one bounded manual audio turn after acceptance' | 'one bounded synthetic demo turn after acceptance';
 }
 export interface VoiceClientSnapshot {
     readonly phase: VoiceClientPhase;
@@ -46,7 +48,7 @@ export interface VoiceAudioSink {
     reset(): void;
 }
 export interface VoiceAudioCapture {
-    /** Request permission and begin owned microphone capture. */
+    /** Begin the provider-appropriate owned input source from an explicit gesture. */
     start(): Promise<void>;
     /** Stop every capture resource, optionally flushing the final bounded frame. */
     stop(flush?: boolean): void;
@@ -56,7 +58,7 @@ export interface VoiceAudioCaptureHandlers {
     readonly onLimit: () => void;
     readonly onError: (error: Error) => void;
 }
-export type VoiceAudioCaptureFactory = (handlers: VoiceAudioCaptureHandlers) => VoiceAudioCapture;
+export type VoiceAudioCaptureFactory = (handlers: VoiceAudioCaptureHandlers, provider: VoiceProviderId) => VoiceAudioCapture;
 export interface VoiceClientControllerOptions {
     readonly route: string;
     readonly location?: Pick<Location, 'href' | 'protocol'>;
@@ -106,9 +108,9 @@ export declare class VoiceClientController {
     start(sessionId: string): void;
     /** Append one bounded PCM16 mono/16 kHz chunk to this exact ready Session. */
     appendPcm16(sessionId: string, chunk: Uint8Array): void;
-    /** Start microphone capture only from the exact ready Session's user gesture. */
+    /** Start the disclosed provider's input source only from the exact ready Session's user gesture. */
     beginCapture(sessionId: string): void;
-    /** Finish the explicit microphone turn and ask only the provider for an answer. */
+    /** Finish the explicit input turn and ask only the disclosed provider for an answer. */
     finishCapture(sessionId: string): void;
     private relayPcm16;
     /** Commit the one manual turn. This operation can never submit the DSH composer. */

@@ -2,10 +2,32 @@
 
 ## Unreleased
 
+## 0.3.0-preview.5
+
 - Add a separate no-secret hosted proof pinned to immutable preview.4 and exact
   DSH alpha.2. It validates an exact 40-field sanitized receipt before exposing
   it in the job summary and one direct JSON artifact. The historical alpha.1
   workflow remains byte-bound to immutable preview.3.
+- Add an explicit `synthetic-demo` provider and make it the bundled install
+  path. It runs one deterministic, credential-free turn without contacting an
+  external provider or requesting a microphone. The disclosure, controls,
+  fixed transcripts, bounded chime, and draft handoff stay visibly labeled as
+  synthetic; there is no silent fallback from Qwen.
+- Bind the disclosed provider into the one-shot consent subject, ready event,
+  browser capture selection, and manual-turn authorization. Mixed-provider
+  disclosure or authorization fails closed.
+- Add an end-to-end localhost carrier regression proving the bundled synthetic
+  path never validates or resolves Qwen-only configuration and completes with
+  exact-session authority checks, bounded PCM, fixed transcripts, and no
+  credential access.
+- Add an exact-alpha.2 authenticated packed-install smoke for the bundled demo.
+  It retains the package patch, uses no profile override, credential, Qwen shim,
+  or external provider server, and verifies fixed transcripts, the bounded
+  chime, completed turn, and deterministic disposal.
+- Lead the README with the user experience, add a two-minute install/test/remove
+  path, a reproducible 24-second scripted walkthrough with a synthetic chime,
+  a five-tester CTA, and structured setup-stage/stopping-point fields. Adoption
+  measurement explicitly excludes clones and asset downloads.
 
 ## 0.3.0-preview.4
 

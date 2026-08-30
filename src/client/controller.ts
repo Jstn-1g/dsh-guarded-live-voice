@@ -6,7 +6,7 @@ import {
   MAX_OUTPUT_PCM16_TURN_BYTES,
   MAX_VOICE_SOCKET_BUFFERED_BYTES,
 } from '../shared/audio.js'
-import { WIRE_VERSION, parseServerControl } from '../shared/wire.js'
+import { WIRE_VERSION, parseServerControl, type VoiceProviderId } from '../shared/wire.js'
 
 export type VoiceClientPhase =
   | 'idle'
@@ -23,11 +23,14 @@ export type VoiceClientPhase =
 export interface VoiceDisclosureView {
   readonly expiresAt: number
   readonly workspaceId: string
-  readonly audioDestination: 'Alibaba Cloud Qwen realtime API'
+  readonly provider: VoiceProviderId
+  readonly audioDestination: 'Alibaba Cloud Qwen realtime API' | 'Local deterministic synthetic demo'
   readonly exportedContext: 'none'
   readonly executionAuthority: 'none'
-  readonly providerRetention: 'not specified for Qwen realtime audio'
-  readonly currentMilestone: 'one bounded manual audio turn after acceptance'
+  readonly providerRetention: 'not specified for Qwen realtime audio' | 'none; no external provider connection'
+  readonly currentMilestone:
+    | 'one bounded manual audio turn after acceptance'
+    | 'one bounded synthetic demo turn after acceptance'
 }
 
 export interface VoiceClientSnapshot {
@@ -71,7 +74,7 @@ export interface VoiceAudioSink {
 }
 
 export interface VoiceAudioCapture {
-  /** Request permission and begin owned microphone capture. */
+  /** Begin the provider-appropriate owned input source from an explicit gesture. */
   start(): Promise<void>
   /** Stop every capture resource, optionally flushing the final bounded frame. */
   stop(flush?: boolean): void
@@ -83,7 +86,10 @@ export interface VoiceAudioCaptureHandlers {
   readonly onError: (error: Error) => void
 }
 
-export type VoiceAudioCaptureFactory = (handlers: VoiceAudioCaptureHandlers) => VoiceAudioCapture
+export type VoiceAudioCaptureFactory = (
+  handlers: VoiceAudioCaptureHandlers,
+  provider: VoiceProviderId,
+) => VoiceAudioCapture
 
 interface ActiveSocket {
   readonly socket: VoiceSocket
@@ -249,7 +255,7 @@ export class VoiceClientController {
     this.relayPcm16(active, chunk)
   }
 
-  /** Start microphone capture only from the exact ready Session's user gesture. */
+  /** Start the disclosed provider's input source only from the exact ready Session's user gesture. */
   beginCapture(sessionId: string): void {
     const active = this.active
     if (this.disposed
@@ -265,11 +271,13 @@ export class VoiceClientController {
     let record: ActiveCapture | undefined
     let capture: VoiceAudioCapture
     try {
+      const provider = this.snapshot.disclosure?.provider
+      if (provider === undefined) throw new Error('voice provider disclosure is unavailable')
       capture = this.captureFactory({
         onChunk: chunk => { if (record !== undefined) this.capturedPcm16(record, chunk) },
         onLimit: () => { if (record !== undefined) this.captureLimit(record) },
         onError: error => { if (record !== undefined) this.captureError(record, error) },
-      })
+      }, provider)
     } catch (error) {
       this.failedSocket(active, error)
       return
@@ -284,7 +292,7 @@ export class VoiceClientController {
     void this.prepareCapture(active, record)
   }
 
-  /** Finish the explicit microphone turn and ask only the provider for an answer. */
+  /** Finish the explicit input turn and ask only the disclosed provider for an answer. */
   finishCapture(sessionId: string): void {
     const active = this.active
     const record = this.capture
@@ -515,6 +523,7 @@ export class VoiceClientController {
         const disclosure: VoiceDisclosureView = {
           expiresAt: event.expiresAt,
           workspaceId: event.workspaceId,
+          provider: event.provider,
           ...event.disclosure,
         }
         this.consentTimer = this.schedule(() => {
@@ -529,7 +538,8 @@ export class VoiceClientController {
         if (this.snapshot.phase !== 'authorizing'
           || disclosure === undefined
           || event.sessionId !== active.sessionId
-          || event.workspaceId !== disclosure.workspaceId) {
+          || event.workspaceId !== disclosure.workspaceId
+          || event.provider !== disclosure.provider) {
           throw new Error('voice ready event does not match the accepted binding')
         }
         this.publish({

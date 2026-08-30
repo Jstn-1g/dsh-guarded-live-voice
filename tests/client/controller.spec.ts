@@ -102,6 +102,37 @@ function readyEvent(sessionId = 'session-1', workspaceId = 'workspace-1'): strin
   })
 }
 
+function demoConsentEvent(sessionId = 'session-1', workspaceId = 'workspace-1'): string {
+  return JSON.stringify({
+    v: 1,
+    type: 'consent.required',
+    challenge: CHALLENGE,
+    expiresAt: NOW + 60_000,
+    sessionId,
+    workspaceId,
+    provider: 'synthetic-demo',
+    disclosure: {
+      audioDestination: 'Local deterministic synthetic demo',
+      exportedContext: 'none',
+      executionAuthority: 'none',
+      providerRetention: 'none; no external provider connection',
+      currentMilestone: 'one bounded synthetic demo turn after acceptance',
+    },
+  })
+}
+
+function demoReadyEvent(sessionId = 'session-1', workspaceId = 'workspace-1'): string {
+  return JSON.stringify({
+    v: 1,
+    type: 'ready',
+    sessionId,
+    workspaceId,
+    provider: 'synthetic-demo',
+    model: 'dsh-live-voice-synthetic-demo',
+    authority: 'proposal-only',
+  })
+}
+
 function fixture(socket = new FakeSocket(), captureFactory?: VoiceAudioCaptureFactory) {
   let now = NOW
   let scheduled: { readonly callback: () => void; readonly delayMs: number } | undefined
@@ -209,7 +240,7 @@ describe('browser voice controller', () => {
     expect(f.socket.sent.map(value => JSON.parse(value))).toEqual([{ v: 1, type: 'bind', sessionId: 'session-1' }])
   })
 
-  it('accepts ready only for the exact accepted session and workspace', () => {
+  it('accepts ready only for the exact accepted session, workspace, and provider', () => {
     const f = fixture()
     f.controller.start('session-1')
     f.socket.open()
@@ -231,6 +262,15 @@ describe('browser voice controller', () => {
     mismatch.socket.message(readyEvent('session-1', 'workspace-2'))
     expect(mismatch.controller.getSnapshot()).toMatchObject({ phase: 'error' })
     expect(mismatch.socket.closes).toHaveLength(1)
+
+    const providerMismatch = fixture()
+    providerMismatch.controller.start('session-1')
+    providerMismatch.socket.open()
+    providerMismatch.socket.message(demoConsentEvent())
+    providerMismatch.controller.accept('session-1')
+    providerMismatch.socket.message(readyEvent())
+    expect(providerMismatch.controller.getSnapshot()).toMatchObject({ phase: 'error' })
+    expect(providerMismatch.socket.closes).toHaveLength(1)
   })
 
   it('relays one exact-session bounded PCM turn and accepts only ordered streamed output', () => {
@@ -297,10 +337,11 @@ describe('browser voice controller', () => {
         if (flush === true) handlers?.onChunk(new Uint8Array([3, 0]))
       }),
     }
-    const f = fixture(new FakeSocket(), callbacks => {
+    const captureFactory = vi.fn((callbacks: VoiceAudioCaptureHandlers, _provider: string) => {
       handlers = callbacks
       return capture
     })
+    const f = fixture(new FakeSocket(), captureFactory)
     f.controller.start('session-1')
     f.socket.open()
     f.socket.message(consentEvent())
@@ -310,6 +351,7 @@ describe('browser voice controller', () => {
     f.controller.beginCapture('other-session')
     expect(capture.start).not.toHaveBeenCalled()
     f.controller.beginCapture('session-1')
+    expect(captureFactory.mock.calls[0]?.[1]).toBe('qwen')
     expect(f.controller.getSnapshot().phase).toBe('preparing-audio')
     expect(f.audioSink.prepare).toHaveBeenCalledTimes(1)
     await vi.waitFor(() => { expect(f.controller.getSnapshot().phase).toBe('recording') })
@@ -333,6 +375,34 @@ describe('browser voice controller', () => {
     handlers?.onLimit()
     expect(f.socket.binary).toHaveLength(binaryCount)
     expect(f.socket.sent.filter(frame => frame.includes('turn.commit'))).toHaveLength(1)
+  })
+
+  it('passes the disclosed synthetic provider to the explicit capture gesture', async () => {
+    let handlers: VoiceAudioCaptureHandlers | undefined
+    const capture = {
+      start: vi.fn(() => {
+        handlers?.onChunk(new Uint8Array([1, 0]))
+        return Promise.resolve()
+      }),
+      stop: vi.fn(),
+    }
+    const captureFactory = vi.fn((callbacks: VoiceAudioCaptureHandlers, _provider: string) => {
+      handlers = callbacks
+      return capture
+    })
+    const f = fixture(new FakeSocket(), captureFactory)
+    f.controller.start('session-1')
+    f.socket.open()
+    f.socket.message(demoConsentEvent())
+    f.controller.accept('session-1')
+    f.socket.message(demoReadyEvent())
+    f.controller.beginCapture('session-1')
+
+    await vi.waitFor(() => { expect(f.controller.getSnapshot().phase).toBe('recording') })
+    expect(captureFactory.mock.calls[0]?.[1]).toBe('synthetic-demo')
+    expect(f.socket.binary).toEqual([new Uint8Array([1, 0])])
+    f.controller.finishCapture('session-1')
+    expect(JSON.parse(f.socket.sent.at(-1) ?? '')).toEqual({ v: 1, type: 'turn.commit' })
   })
 
   it('fails the exact lifecycle on permission denial and auto-commits only at the hard capture cap', async () => {

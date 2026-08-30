@@ -9,6 +9,34 @@ export const MAX_ERROR_CODE_LENGTH = 64
 export const MAX_ERROR_MESSAGE_LENGTH = 2_048
 export const MAX_TRANSCRIPT_LENGTH = MAX_VOICE_TRANSCRIPT_LENGTH
 export const CHALLENGE_PATTERN = /^[A-Za-z0-9_-]{32,128}$/
+export type VoiceProviderId = 'qwen' | 'synthetic-demo'
+
+const QWEN_DISCLOSURE = Object.freeze({
+  audioDestination: 'Alibaba Cloud Qwen realtime API',
+  exportedContext: 'none',
+  executionAuthority: 'none',
+  providerRetention: 'not specified for Qwen realtime audio',
+  currentMilestone: 'one bounded manual audio turn after acceptance',
+} as const)
+
+const SYNTHETIC_DEMO_DISCLOSURE = Object.freeze({
+  audioDestination: 'Local deterministic synthetic demo',
+  exportedContext: 'none',
+  executionAuthority: 'none',
+  providerRetention: 'none; no external provider connection',
+  currentMilestone: 'one bounded synthetic demo turn after acceptance',
+} as const)
+
+export type VoiceProviderDisclosure =
+  | { readonly provider: 'qwen'; readonly disclosure: typeof QWEN_DISCLOSURE }
+  | { readonly provider: 'synthetic-demo'; readonly disclosure: typeof SYNTHETIC_DEMO_DISCLOSURE }
+
+/** Keep the disclosed destination inseparable from the configured provider id. */
+export function voiceProviderDisclosure(provider: VoiceProviderId): VoiceProviderDisclosure {
+  if (provider === 'qwen') return { provider, disclosure: QWEN_DISCLOSURE }
+  if (provider === 'synthetic-demo') return { provider, disclosure: SYNTHETIC_DEMO_DISCLOSURE }
+  throw new TypeError('voice provider must be qwen or synthetic-demo')
+}
 
 export interface BindControl {
   readonly v: typeof WIRE_VERSION
@@ -34,29 +62,23 @@ export interface TurnCommitControl {
 
 export type ClientControl = BindControl | ConsentAcceptControl | TurnCommitControl | StopControl
 
-export interface ConsentRequiredEvent {
+interface ConsentRequiredEventBase {
   readonly v: typeof WIRE_VERSION
   readonly type: 'consent.required'
   readonly challenge: string
   readonly expiresAt: number
   readonly sessionId: string
   readonly workspaceId: string
-  readonly provider: 'qwen'
-  readonly disclosure: {
-    readonly audioDestination: 'Alibaba Cloud Qwen realtime API'
-    readonly exportedContext: 'none'
-    readonly executionAuthority: 'none'
-    readonly providerRetention: 'not specified for Qwen realtime audio'
-    readonly currentMilestone: 'one bounded manual audio turn after acceptance'
-  }
 }
+
+export type ConsentRequiredEvent = ConsentRequiredEventBase & VoiceProviderDisclosure
 
 export interface ReadyEvent {
   readonly v: typeof WIRE_VERSION
   readonly type: 'ready'
   readonly sessionId: string
   readonly workspaceId: string
-  readonly provider: 'qwen'
+  readonly provider: VoiceProviderId
   readonly model: string
   readonly authority: 'proposal-only'
 }
@@ -103,6 +125,27 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function hasOnlyKeys(record: Record<string, unknown>, allowed: readonly string[]): boolean {
   const allow = new Set(allowed)
   return Object.keys(record).every(key => allow.has(key))
+}
+
+const DISCLOSURE_KEYS = [
+  'audioDestination',
+  'exportedContext',
+  'executionAuthority',
+  'providerRetention',
+  'currentMilestone',
+] as const
+
+function isVoiceProviderId(value: unknown): value is VoiceProviderId {
+  return value === 'qwen' || value === 'synthetic-demo'
+}
+
+function hasExactDisclosure(
+  value: unknown,
+  expected: VoiceProviderDisclosure['disclosure'],
+): boolean {
+  return isRecord(value)
+    && hasOnlyKeys(value, DISCLOSURE_KEYS)
+    && DISCLOSURE_KEYS.every(key => value[key] === expected[key])
 }
 
 function controlBytes(raw: string): number {
@@ -205,16 +248,11 @@ export function parseServerControl(raw: string): ServerControl {
       || parsed.expiresAt <= 0
       || !isValidWireId(parsed.sessionId)
       || !isValidWireId(parsed.workspaceId)
-      || parsed.provider !== 'qwen'
-      || !isRecord(parsed.disclosure)
-      || !hasOnlyKeys(parsed.disclosure, [
-        'audioDestination', 'exportedContext', 'executionAuthority', 'providerRetention', 'currentMilestone',
-      ])
-      || parsed.disclosure.audioDestination !== 'Alibaba Cloud Qwen realtime API'
-      || parsed.disclosure.exportedContext !== 'none'
-      || parsed.disclosure.executionAuthority !== 'none'
-      || parsed.disclosure.providerRetention !== 'not specified for Qwen realtime audio'
-      || parsed.disclosure.currentMilestone !== 'one bounded manual audio turn after acceptance') {
+      || !isVoiceProviderId(parsed.provider)) {
+      throw new GuardedVoiceError('invalid-message', 'consent-required event is invalid')
+    }
+    const providerDisclosure = voiceProviderDisclosure(parsed.provider)
+    if (!hasExactDisclosure(parsed.disclosure, providerDisclosure.disclosure)) {
       throw new GuardedVoiceError('invalid-message', 'consent-required event is invalid')
     }
     return {
@@ -224,14 +262,7 @@ export function parseServerControl(raw: string): ServerControl {
       expiresAt: parsed.expiresAt,
       sessionId: parsed.sessionId,
       workspaceId: parsed.workspaceId,
-      provider: 'qwen',
-      disclosure: {
-        audioDestination: 'Alibaba Cloud Qwen realtime API',
-        exportedContext: 'none',
-        executionAuthority: 'none',
-        providerRetention: 'not specified for Qwen realtime audio',
-        currentMilestone: 'one bounded manual audio turn after acceptance',
-      },
+      ...providerDisclosure,
     }
   }
 
@@ -239,7 +270,7 @@ export function parseServerControl(raw: string): ServerControl {
     if (!hasOnlyKeys(parsed, ['v', 'type', 'sessionId', 'workspaceId', 'provider', 'model', 'authority'])
       || !isValidWireId(parsed.sessionId)
       || !isValidWireId(parsed.workspaceId)
-      || parsed.provider !== 'qwen'
+      || !isVoiceProviderId(parsed.provider)
       || !validDisplayString(parsed.model, MAX_MODEL_LENGTH)
       || parsed.authority !== 'proposal-only') {
       throw new GuardedVoiceError('invalid-message', 'ready event is invalid')
@@ -249,7 +280,7 @@ export function parseServerControl(raw: string): ServerControl {
       type: 'ready',
       sessionId: parsed.sessionId,
       workspaceId: parsed.workspaceId,
-      provider: 'qwen',
+      provider: parsed.provider,
       model: parsed.model,
       authority: 'proposal-only',
     }

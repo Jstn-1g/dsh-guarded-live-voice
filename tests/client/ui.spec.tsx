@@ -46,6 +46,7 @@ describe('DSH Live Voice composer surfaces', () => {
       phase: 'awaiting-consent',
       sessionId: 'session-1',
       disclosure: {
+        provider: 'qwen',
         expiresAt: 1_900_000_060_000,
         workspaceId: 'workspace-1',
         audioDestination: 'Alibaba Cloud Qwen realtime API',
@@ -90,6 +91,7 @@ describe('DSH Live Voice composer surfaces', () => {
             phase,
             sessionId: 'session-1',
             disclosure: {
+              provider: 'qwen',
               expiresAt: 1_900_000_060_000,
               workspaceId: 'workspace-1',
               audioDestination: 'Alibaba Cloud Qwen realtime API',
@@ -138,6 +140,7 @@ describe('DSH Live Voice composer surfaces', () => {
       sessionId: 'session-1',
       model: 'qwen-audio-3.0-realtime-plus',
       disclosure: {
+        provider: 'qwen',
         expiresAt: 1_900_000_060_000,
         workspaceId: 'workspace-1',
         audioDestination: 'Alibaba Cloud Qwen realtime API',
@@ -161,8 +164,48 @@ describe('DSH Live Voice composer surfaces', () => {
     expect(input.stopVoice).toHaveBeenCalledWith('session-1')
   })
 
+  it('labels the synthetic provider without claiming Qwen or microphone use', () => {
+    const disclosure = {
+      provider: 'synthetic-demo' as const,
+      expiresAt: 1_900_000_060_000,
+      workspaceId: 'workspace-1',
+      audioDestination: 'Local deterministic synthetic demo' as const,
+      exportedContext: 'none' as const,
+      executionAuthority: 'none' as const,
+      providerRetention: 'none; no external provider connection' as const,
+      currentMilestone: 'one bounded synthetic demo turn after acceptance' as const,
+    }
+    const ready = props({
+      phase: 'ready',
+      sessionId: 'session-1',
+      model: 'dsh-live-voice-synthetic-demo',
+      disclosure,
+    })
+    const readyPanel = VoicePanel(ready as never)
+    const readyText = textOf(readyPanel)
+    expect(readyText).toContain('Run one deterministic synthetic turn')
+    expect(readyText).toContain('No microphone or external provider is used')
+    expect(readyText).not.toContain('Qwen')
+    const start = elements(readyPanel)
+      .find(element => element.type === 'button' && textOf(element) === 'Start synthetic demo')
+    ;(start?.props as { onClick(): void }).onClick()
+    expect(ready.beginVoiceCapture).toHaveBeenCalledWith('session-1')
+
+    const recording = props({ phase: 'recording', sessionId: 'session-1', disclosure })
+    const recordingPanel = VoicePanel(recording as never)
+    expect(textOf(recordingPanel)).toContain('Synthetic demo frame ready')
+    const finish = elements(recordingPanel)
+      .find(element => element.type === 'button' && textOf(element) === 'Finish demo and request response')
+    ;(finish?.props as { onClick(): void }).onClick()
+    expect(recording.finishVoiceCapture).toHaveBeenCalledWith('session-1')
+
+    const responding = props({ phase: 'responding', sessionId: 'session-1', disclosure })
+    expect(textOf(VoicePanel(responding as never))).toContain('local synthetic provider')
+  })
+
   it('keeps permission cancellation visible and commits recording only through its explicit button', () => {
     const disclosure = {
+      provider: 'qwen' as const,
       expiresAt: 1_900_000_060_000,
       workspaceId: 'workspace-1',
       audioDestination: 'Alibaba Cloud Qwen realtime API' as const,
@@ -202,6 +245,7 @@ describe('DSH Live Voice composer surfaces', () => {
 
   it('offers only a conflict-fenced final user transcript as an editable draft', () => {
     const disclosure = {
+      provider: 'qwen' as const,
       expiresAt: 1_900_000_060_000,
       workspaceId: 'workspace-1',
       audioDestination: 'Alibaba Cloud Qwen realtime API' as const,

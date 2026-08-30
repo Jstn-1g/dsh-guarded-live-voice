@@ -1,9 +1,10 @@
 /**
- * Disposable, fake-only composition smoke for the packed voice plugin.
+ * Disposable, provider-isolated composition smoke for the packed voice plugin.
  *
  * This is deliberately not shipped. It installs the current tarball through
  * the official DSH CLI, mounts it with the official Web bundle, and drives one
- * real workspace/session/gateway turn against a deterministic loopback peer.
+ * real workspace/session/gateway turn against either the bundled local
+ * synthetic provider or a deterministic loopback Qwen peer.
  */
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
@@ -28,9 +29,22 @@ import { shouldRunAlphaAuth } from './smoke-harness-alpha-mode.mjs'
 
 const runBrowserBfcache = process.env.DSH_VOICE_SMOKE_BROWSER_BFCACHE === '1'
 const alphaAuthRequested = process.env.DSH_VOICE_SMOKE_ALPHA_AUTH === '1'
+const runSyntheticDemo = process.env.DSH_VOICE_SMOKE_SYNTHETIC_DEMO === '1'
 const PLUGIN_NAME = 'dsh-live-voice'
 const ROUTE = '/guarded-voice'
 const MODEL = 'qwen-audio-3.0-realtime-plus'
+const SYNTHETIC_DEMO_MODEL = 'dsh-live-voice-synthetic-demo-v1'
+const SYNTHETIC_DEMO_USER_TRANSCRIPT = 'Synthetic demo request: place this sample transcript in the DSH draft.'
+const SYNTHETIC_DEMO_ASSISTANT_TRANSCRIPT = 'Synthetic demo response: the local consent-bound turn completed without contacting an external provider.'
+const SYNTHETIC_DEMO_CHIME_BYTES = 4_800
+const SYNTHETIC_DEMO_CHIME_SHA256 = 'ef3d9ae9e285aaef41443f087dbf1a046ed32d50470394f1e492c86815811e57'
+const SYNTHETIC_DEMO_DISCLOSURE = Object.freeze({
+  audioDestination: 'Local deterministic synthetic demo',
+  exportedContext: 'none',
+  executionAuthority: 'none',
+  providerRetention: 'none; no external provider connection',
+  currentMilestone: 'one bounded synthetic demo turn after acceptance',
+})
 const WORKSPACE_SLUG = 'voice-smoke'
 const ALPHA_TARGETS = new Map([
   ['0.1.2-alpha.1', {
@@ -77,6 +91,10 @@ const runAlphaAuth = shouldRunAlphaAuth({
   runBrowserBfcache,
   supportedAlphaVersion: EXPECTED_ALPHA_VERSION,
 })
+if (runSyntheticDemo
+  && (!runAlphaAuth || runBrowserBfcache || EXPECTED_ALPHA_VERSION !== '0.1.2-alpha.2')) {
+  throw new Error('synthetic demo smoke requires exact authenticated Harness alpha.2 without BFCache mode')
+}
 const runOfficialSource = runBrowserBfcache || runAlphaAuth
 const PROFILE = runOfficialSource ? 'web' : 'dsh-live-voice-fake-qwen-smoke'
 const cliBin = join(harnessRoot, 'apps', 'cli', 'src', 'bin.ts')
@@ -539,6 +557,143 @@ async function driveGateway(baseUrl, sessionId, workspaceId, cookie) {
     outputBytes,
     finalUserTranscript: sawUserTranscript,
     finalAssistantTranscript: sawAssistantTranscript,
+    turnStatus,
+  }
+}
+
+async function driveSyntheticDemoGateway(baseUrl, sessionId, workspaceId, cookie) {
+  assert.ok(cookie !== undefined, 'synthetic demo alpha.2 gateway requires the authenticated Harness cookie')
+  const url = new URL(ROUTE, baseUrl)
+  url.protocol = 'ws:'
+  const events = []
+  let audioChunks = 0
+  let outputBytes = 0
+  let outputSha256
+  let sawUserTranscript = false
+  let sawAssistantTranscript = false
+  let disclosureAccepted = false
+  let providerReady = false
+  let turnStatus
+  let stopped = false
+  let closeCode
+
+  const completion = new Promise((resolveCompletion, rejectCompletion) => {
+    let completed = false
+    const finish = (error) => {
+      if (completed) return
+      completed = true
+      if (error === undefined) resolveCompletion()
+      else rejectCompletion(error)
+    }
+    gatewaySocket = new WebSocket(url, {
+      origin: baseUrl,
+      headers: { cookie },
+    })
+    gatewaySocket.on('open', () => {
+      gatewaySocket.send(JSON.stringify({ v: 1, type: 'bind', sessionId }))
+    })
+    gatewaySocket.on('message', (data, isBinary) => {
+      try {
+        if (isBinary) {
+          events.push('audio')
+          audioChunks += 1
+          const output = Buffer.from(data)
+          outputBytes += output.byteLength
+          outputSha256 = createHash('sha256').update(output).digest('hex')
+          assert.equal(output.byteLength, SYNTHETIC_DEMO_CHIME_BYTES, 'synthetic demo chime byte count differed')
+          assert.equal(output.byteLength % 2, 0, 'synthetic demo chime was not PCM16-aligned')
+          assert.equal(outputSha256, SYNTHETIC_DEMO_CHIME_SHA256, 'synthetic demo chime digest differed')
+          return
+        }
+        const event = JSON.parse(data.toString())
+        events.push(event.type)
+        if (event.type === 'consent.required') {
+          assert.equal(event.sessionId, sessionId)
+          assert.equal(event.workspaceId, workspaceId)
+          assert.equal(event.provider, 'synthetic-demo')
+          assert.deepEqual(event.disclosure, SYNTHETIC_DEMO_DISCLOSURE)
+          disclosureAccepted = true
+          gatewaySocket.send(JSON.stringify({ v: 1, type: 'consent.accept', challenge: event.challenge }))
+          return
+        }
+        if (event.type === 'ready') {
+          assert.equal(event.sessionId, sessionId)
+          assert.equal(event.workspaceId, workspaceId)
+          assert.equal(event.provider, 'synthetic-demo')
+          assert.equal(event.model, SYNTHETIC_DEMO_MODEL)
+          assert.equal(event.authority, 'proposal-only')
+          providerReady = true
+          gatewaySocket.send(EXPECTED_AUDIO)
+          gatewaySocket.send(JSON.stringify({ v: 1, type: 'turn.commit' }))
+          return
+        }
+        if (event.type === 'transcript') {
+          if (event.role === 'user') {
+            assert.equal(event.text, SYNTHETIC_DEMO_USER_TRANSCRIPT)
+            assert.equal(event.final, true)
+            sawUserTranscript = true
+          } else if (event.role === 'assistant') {
+            assert.equal(event.text, SYNTHETIC_DEMO_ASSISTANT_TRANSCRIPT)
+            assert.equal(event.final, true)
+            sawAssistantTranscript = true
+          } else {
+            throw new Error('synthetic demo gateway returned an unexpected transcript role')
+          }
+          return
+        }
+        if (event.type === 'turn.done') {
+          turnStatus = event.status
+          gatewaySocket.send(JSON.stringify({ v: 1, type: 'stop' }))
+          return
+        }
+        if (event.type === 'stopped') {
+          stopped = true
+          return
+        }
+        if (event.type === 'error') throw new Error(`synthetic demo gateway returned error code ${String(event.code)}`)
+        throw new Error('synthetic demo gateway returned an unexpected control event')
+      } catch (error) {
+        finish(error)
+      }
+    })
+    gatewaySocket.on('close', code => {
+      closeCode = code
+      if (turnStatus === 'completed' && stopped) finish()
+      else finish(new Error('synthetic demo gateway closed before completed turn'))
+    })
+    gatewaySocket.on('error', finish)
+  })
+
+  await withTimeout(completion, TURN_TIMEOUT_MS, 'synthetic demo gateway turn')
+  assert.deepEqual(events, [
+    'consent.required',
+    'ready',
+    'transcript',
+    'transcript',
+    'audio',
+    'turn.done',
+    'stopped',
+  ])
+  assert.equal(audioChunks, 1)
+  assert.equal(outputBytes, SYNTHETIC_DEMO_CHIME_BYTES)
+  assert.equal(outputSha256, SYNTHETIC_DEMO_CHIME_SHA256)
+  assert.equal(sawUserTranscript, true)
+  assert.equal(sawAssistantTranscript, true)
+  assert.equal(disclosureAccepted, true)
+  assert.equal(providerReady, true)
+  assert.equal(turnStatus, 'completed')
+  assert.equal(stopped, true)
+  assert.equal(closeCode, 1000)
+  return {
+    audioChunks,
+    disclosureAccepted,
+    finalAssistantTranscript: sawAssistantTranscript,
+    finalUserTranscript: sawUserTranscript,
+    gatewayConnectionDisposed: true,
+    outputBytes,
+    outputSha256,
+    providerReady,
+    providerTurnDisposed: true,
     turnStatus,
   }
 }
@@ -1229,7 +1384,7 @@ async function authenticateAlphaHarness(harness) {
 
   const unauthenticatedVoiceUpgradeStatus = await rejectedVoiceUpgradeStatus(harness.baseUrl)
   assert.equal(unauthenticatedVoiceUpgradeStatus, 401)
-  assert.equal(fakeProvider.acceptedConnections, 0)
+  if (fakeProvider !== undefined) assert.equal(fakeProvider.acceptedConnections, 0)
 
   const exchange = await withTimeout(fetch(harness.launchUrl, { redirect: 'manual' }), TURN_TIMEOUT_MS, 'launch-token exchange')
   const location = exchange.headers.get('location')
@@ -1307,7 +1462,6 @@ async function main() {
   await access(cliBin)
   const harnessRequire = createRequire(join(harnessRoot, 'package.json'))
   const tsxImport = pathToFileURL(harnessRequire.resolve('tsx/esm')).href
-  const realWsEntry = createRequire(import.meta.url).resolve('ws')
 
   temporaryRoot = await mkdtemp(join(tmpdir(), 'dsh-voice-fake-qwen-smoke-'))
   rememberSensitive(temporaryRoot)
@@ -1577,8 +1731,20 @@ async function main() {
   assert.ok(bundles.indexOf('@deepseek-ai/dsh-web-app') < bundles.indexOf(PLUGIN_NAME))
   await writeFile(profileManifestPath, `${JSON.stringify(profileManifest, null, 2)}\n`, 'utf8')
   const installedPluginPackage = createRequire(profileManifestPath).resolve(`${PLUGIN_NAME}/package.json`)
-  const installedPluginUrlPrefix = pathToFileURL(`${dirname(installedPluginPackage)}${sep}`).href
-  await writeFile(join(profileDir, 'cordis.patch.yml'), `\
+  const installedPluginDir = dirname(installedPluginPackage)
+  if (runSyntheticDemo) {
+    const installedBundlePatch = await readFile(join(installedPluginDir, 'cordis.patch.yml'), 'utf8')
+    assert.equal(
+      installedBundlePatch,
+      await readFile(join(pluginRoot, 'cordis.patch.yml'), 'utf8'),
+      'installed synthetic demo bundle patch differed from the packed source',
+    )
+    assert.match(installedBundlePatch, /(?:^|\n)\s*provider:\s*synthetic-demo\s*(?:\n|$)/u)
+    assert.doesNotMatch(installedBundlePatch, /credentialRef|dashscopeWorkspaceId|\bmodel:/u)
+    const profilePatch = await readFile(join(profileDir, 'cordis.patch.yml'), 'utf8')
+    assert.match(profilePatch, /(?:^|\n)\[\]\s*$/u, 'synthetic demo smoke must retain the empty profile override')
+  } else {
+    await writeFile(join(profileDir, 'cordis.patch.yml'), `\
 - id: guarded-live-voice
   name: dsh-live-voice
   config:
@@ -1590,15 +1756,20 @@ async function main() {
     consentTtlMs: 60000
     maxConnections: 1
 `, 'utf8')
+  }
 
-  const registerPath = join(temporaryRoot, 'register.mjs')
-  const loaderPath = join(temporaryRoot, 'redirect-loader.mjs')
-  const shimPath = join(temporaryRoot, 'ws-shim.mjs')
-  await writeFile(registerPath, `\
+  let harnessEnvironment = baseEnvironment
+  if (!runSyntheticDemo) {
+    const realWsEntry = createRequire(import.meta.url).resolve('ws')
+    const installedPluginUrlPrefix = pathToFileURL(`${installedPluginDir}${sep}`).href
+    const registerPath = join(temporaryRoot, 'register.mjs')
+    const loaderPath = join(temporaryRoot, 'redirect-loader.mjs')
+    const shimPath = join(temporaryRoot, 'ws-shim.mjs')
+    await writeFile(registerPath, `\
 import { register } from 'node:module'
 register(new URL('./redirect-loader.mjs', import.meta.url), import.meta.url)
 `, 'utf8')
-  await writeFile(loaderPath, `\
+    await writeFile(loaderPath, `\
 const SHIM = new URL('./ws-shim.mjs', import.meta.url).href
 const PLUGIN_ROOT = ${JSON.stringify(installedPluginUrlPrefix)}
 export async function resolve(specifier, context, nextResolve) {
@@ -1608,7 +1779,7 @@ export async function resolve(specifier, context, nextResolve) {
   return nextResolve(specifier, context)
 }
 `, 'utf8')
-  await writeFile(shimPath, `\
+    await writeFile(shimPath, `\
 import { writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 
@@ -1648,14 +1819,20 @@ export class WebSocket extends RealWebSocket {
 export { WebSocketServer }
 `, 'utf8')
 
-  fakeProvider = createFakeProvider()
-  const fakeProviderUrl = await fakeProvider.listen()
-  const harnessEnvironment = {
-    ...baseEnvironment,
-    NODE_OPTIONS: `--import=${pathToFileURL(registerPath).href}`,
-    DSH_VOICE_FAKE_KEY: FAKE_CREDENTIAL,
-    DSH_VOICE_FAKE_QWEN_URL: fakeProviderUrl,
-    DSH_VOICE_FAKE_QWEN_MARKER: markerPath,
+    fakeProvider = createFakeProvider()
+    const fakeProviderUrl = await fakeProvider.listen()
+    harnessEnvironment = {
+      ...baseEnvironment,
+      NODE_OPTIONS: `--import=${pathToFileURL(registerPath).href}`,
+      DSH_VOICE_FAKE_KEY: FAKE_CREDENTIAL,
+      DSH_VOICE_FAKE_QWEN_URL: fakeProviderUrl,
+      DSH_VOICE_FAKE_QWEN_MARKER: markerPath,
+    }
+  }
+  if (runSyntheticDemo) {
+    assert.equal(harnessEnvironment, baseEnvironment, 'synthetic demo Harness environment was unexpectedly overridden')
+    assert.equal(fakeProvider, undefined, 'synthetic demo smoke must not create a fake provider server')
+    assert.equal(await fileExists(markerPath), false, 'synthetic demo smoke unexpectedly created a provider shim marker')
   }
   const harness = await startHarness([
     '--import',
@@ -1670,8 +1847,10 @@ export { WebSocketServer }
     '--no-open',
   ], harnessEnvironment)
 
-  await waitFor(() => fileExists(markerPath), TURN_TIMEOUT_MS, 'fail-closed provider shim activation')
-  assert.equal(fakeProvider.acceptedConnections, 0, 'provider connected before any gateway consent')
+  if (!runSyntheticDemo) {
+    await waitFor(() => fileExists(markerPath), TURN_TIMEOUT_MS, 'fail-closed provider shim activation')
+    assert.equal(fakeProvider.acceptedConnections, 0, 'provider connected before any gateway consent')
+  }
 
   if (!runAlphaAuth) {
     assert.equal(harness.launchUrl, undefined, 'tokenized Harness launch requires the alpha auth smoke')
@@ -1713,6 +1892,66 @@ export { WebSocketServer }
   rememberSensitive(String(workspaceId))
   const session = await rpc(harness.baseUrl, 'session.create', { workspaceId }, 2, authentication)
   rememberSensitive(String(session.sessionId))
+
+  if (runSyntheticDemo) {
+    const gateway = await driveSyntheticDemoGateway(
+      harness.baseUrl,
+      session.sessionId,
+      workspaceId,
+      authentication.cookie,
+    )
+    process.stdout.write(`${JSON.stringify({
+      rootStatus: rootResponse.status,
+      clientStatus: clientResponse.status,
+      upgradeOnlyStatus: upgradeOnlyResponse.status,
+      workspaceBound: true,
+      sessionBound: true,
+      provider: 'synthetic-demo',
+      model: SYNTHETIC_DEMO_MODEL,
+      bundledProviderConfig: true,
+      profileProviderOverride: false,
+      disclosureAccepted: gateway.disclosureAccepted,
+      providerReady: gateway.providerReady,
+      providerInputBytes: EXPECTED_AUDIO.byteLength,
+      providerOutputBytes: gateway.outputBytes,
+      providerOutputChunks: gateway.audioChunks,
+      providerOutputSha256: gateway.outputSha256,
+      finalUserTranscript: gateway.finalUserTranscript,
+      finalAssistantTranscript: gateway.finalAssistantTranscript,
+      turnStatus: gateway.turnStatus,
+      providerTurnDisposed: gateway.providerTurnDisposed,
+      gatewayConnectionDisposed: gateway.gatewayConnectionDisposed,
+      alphaRpcEndpoints: ['workspace/create', 'session/create'],
+      alphaRpcResponsesCorrelated: true,
+      authenticatedRootStatus: rootResponse.status,
+      cookieIssued: authentication.cookieIssued,
+      credentialConfigured: false,
+      credentialBackedQwen: false,
+      dshBuiltFromCleanSource: !dshWorktreeDirty,
+      dshClientArtifacts,
+      dshCommit,
+      dshTag,
+      dshVersion,
+      dshWebIndexSha256,
+      dshWorktreeDirty,
+      externalProviderServer: false,
+      launchTokenExchanged: authentication.launchTokenExchanged,
+      liveCredential: false,
+      liveProvider: false,
+      officialDshWebProfile: true,
+      os: { platform: process.platform, release: release() },
+      packagedDesktop: false,
+      physicalMicrophone: false,
+      physicalSpeaker: false,
+      pluginCommit,
+      pluginTarballSha256,
+      pluginWorktreeDirty,
+      qwenTransportShim: false,
+      sourceBuiltOfficialAlpha: true,
+      unauthenticatedVoiceUpgradeStatus: authentication.unauthenticatedVoiceUpgradeStatus,
+    })}\n`)
+    return
+  }
 
   if (runBrowserBfcache) {
     const browserBfcache = await driveOfficialBrowserBfcache(

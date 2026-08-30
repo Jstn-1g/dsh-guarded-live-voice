@@ -6,6 +6,7 @@ import {
   isValidWireId,
   parseClientControl,
   parseServerControl,
+  voiceProviderDisclosure,
 } from '../../src/shared/wire.js'
 
 describe('wire controls', () => {
@@ -51,6 +52,7 @@ describe('wire controls', () => {
 
   it('serializes only the supplied safe server event', () => {
     expect(encodeServerControl({ v: 1, type: 'stopped' })).toBe('{"v":1,"type":"stopped"}')
+    expect(() => voiceProviderDisclosure('other' as 'qwen')).toThrow(/voice provider/u)
   })
 
   it('parses the exact disclosure and ready bindings returned by the Host', () => {
@@ -71,6 +73,18 @@ describe('wire controls', () => {
       },
     }
     expect(parseServerControl(JSON.stringify(consent))).toEqual(consent)
+    const syntheticConsent = {
+      ...consent,
+      provider: 'synthetic-demo',
+      disclosure: {
+        audioDestination: 'Local deterministic synthetic demo',
+        exportedContext: 'none',
+        executionAuthority: 'none',
+        providerRetention: 'none; no external provider connection',
+        currentMilestone: 'one bounded synthetic demo turn after acceptance',
+      },
+    }
+    expect(parseServerControl(JSON.stringify(syntheticConsent))).toEqual(syntheticConsent)
     expect(parseServerControl(JSON.stringify({
       v: 1,
       type: 'ready',
@@ -80,6 +94,15 @@ describe('wire controls', () => {
       model: 'qwen-audio-3.0-realtime-plus',
       authority: 'proposal-only',
     }))).toMatchObject({ type: 'ready', sessionId: 'session-1', workspaceId: 'workspace-1' })
+    expect(parseServerControl(JSON.stringify({
+      v: 1,
+      type: 'ready',
+      sessionId: 'session-1',
+      workspaceId: 'workspace-1',
+      provider: 'synthetic-demo',
+      model: 'synthetic-demo-v1',
+      authority: 'proposal-only',
+    }))).toMatchObject({ type: 'ready', provider: 'synthetic-demo', model: 'synthetic-demo-v1' })
     expect(parseServerControl('{"v":1,"type":"stopped"}')).toEqual({ v: 1, type: 'stopped' })
     expect(parseServerControl('{"v":1,"type":"error","code":"closed","message":"safe message"}'))
       .toEqual({ v: 1, type: 'error', code: 'closed', message: 'safe message' })
@@ -87,6 +110,44 @@ describe('wire controls', () => {
       .toEqual({ v: 1, type: 'transcript', role: 'assistant', text: 'line one\nline two', final: true })
     expect(parseServerControl('{"v":1,"type":"turn.done","status":"completed"}'))
       .toEqual({ v: 1, type: 'turn.done', status: 'completed' })
+  })
+
+  it('rejects mixed and arbitrary provider disclosure variants', () => {
+    const base = {
+      v: 1,
+      type: 'consent.required',
+      challenge: 'a'.repeat(43),
+      expiresAt: 1_900_000_000_000,
+      sessionId: 'session-1',
+      workspaceId: 'workspace-1',
+    }
+    const qwenDisclosure = {
+      audioDestination: 'Alibaba Cloud Qwen realtime API',
+      exportedContext: 'none',
+      executionAuthority: 'none',
+      providerRetention: 'not specified for Qwen realtime audio',
+      currentMilestone: 'one bounded manual audio turn after acceptance',
+    }
+    const syntheticDisclosure = {
+      audioDestination: 'Local deterministic synthetic demo',
+      exportedContext: 'none',
+      executionAuthority: 'none',
+      providerRetention: 'none; no external provider connection',
+      currentMilestone: 'one bounded synthetic demo turn after acceptance',
+    }
+
+    for (const event of [
+      { ...base, provider: 'qwen', disclosure: syntheticDisclosure },
+      { ...base, provider: 'synthetic-demo', disclosure: qwenDisclosure },
+      {
+        ...base,
+        provider: 'synthetic-demo',
+        disclosure: { ...syntheticDisclosure, audioDestination: 'arbitrary destination' },
+      },
+      { ...base, provider: 'other', disclosure: syntheticDisclosure },
+    ]) {
+      expect(() => parseServerControl(JSON.stringify(event))).toThrow(/consent-required event is invalid/u)
+    }
   })
 
   it.each([

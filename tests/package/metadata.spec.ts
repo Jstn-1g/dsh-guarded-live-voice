@@ -10,7 +10,7 @@ describe('preview package metadata', () => {
       dsh?: { client?: { platform?: string; inject?: string[]; immediately?: unknown; external?: unknown } }
     }
     expect(manifest.description).toBe(
-      'Safety-first DeepSeek Harness live voice preview with exact-session consent and one bounded manual audio turn',
+      'DeepSeek Harness live voice preview with exact-session consent, a local synthetic demo, and one bounded manual turn',
     )
     expect(manifest.description).not.toMatch(/full.duplex|continuous conversation|production.ready/iu)
     expect(manifest.exports?.['./client']).toEqual({

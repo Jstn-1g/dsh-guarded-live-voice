@@ -19,24 +19,31 @@ The current design has an ordered Host/browser control path:
    exact disclosure and binding, and sends acceptance only after the disclosure
    button is pressed.
 8. `session-manager` consumes the challenge once, revalidates authority, and
-   authorizes the allowlisted `qwen` model without exposing credential material.
+   authorizes only the provider named in that disclosure. The bundled
+   `synthetic-demo` provider resolves no credential; explicit `qwen` mode
+   authorizes the allowlisted model without exposing credential material.
 9. `manual-turn` revalidates that ready lease, opens a provider capability, then
    revalidates again before publishing readiness. It repeats the check before
    every append and commit, and again before every provider event is exposed to
    the browser.
-10. `qwen-manual-turn` requires an audio-mode `pcm`/manual-turn handshake and
-    exposes exactly one bounded PCM append/commit capability. It accepts only
-    the documented transcript/audio/response event subset; response, item,
-    output, and content identities cannot change mid-turn. Uncommitted input
-    expires after 60 seconds and an in-flight response after 90 seconds.
+10. `synthetic-demo-turn` validates and counts bounded PCM without retaining it,
+    then emits fixed transcripts and one deterministic chime in process.
+    Alternatively, `qwen-manual-turn` requires an audio-mode
+    `pcm`/manual-turn handshake and exposes exactly one bounded PCM append/commit
+    capability. It accepts only the documented transcript/audio/response event
+    subset; response, item, output, and content identities cannot change
+    mid-turn. Uncommitted Qwen input expires after 60 seconds and an in-flight
+    response after 90 seconds.
 11. After provider readiness, `gateway` accepts bounded binary PCM frames and
     one `turn.commit` control. It relays only complete transcript snapshots,
     bounded PCM output frames, and one terminal status.
-12. A second explicit button gesture creates the browser audio context and asks
-    for microphone permission. An owned AudioWorklet downmixes the input; the
-    client preserves resampler phase across callbacks, emits bounded PCM16
-    mono/16 kHz frames, flushes before explicit commit, and releases tracks,
-    nodes, contexts, and late permission results on every terminal path.
+12. A second explicit button gesture selects the disclosed provider's input
+    source. Synthetic mode emits one fixed local frame and never asks for a
+    microphone. Qwen mode creates the browser audio context and asks for
+    microphone permission; an owned AudioWorklet downmixes the input, preserves
+    resampler phase, emits bounded PCM16 mono/16 kHz frames, flushes before
+    explicit commit, and releases tracks, nodes, contexts, and late permission
+    results on every terminal path.
 13. Provider PCM16 mono/24 kHz output is converted and scheduled in protocol
     order. Playback is prepared by the same record gesture, permits at most five
     seconds of queued audio and 256 live source nodes, and resets every
@@ -84,7 +91,8 @@ a `file://` null origin, so that implementation cannot be reused unchanged
 there. The official Desktop carrier and plugin seam remain unconfirmed, and
 the proof does not alter the production carrier.
 
-All provider behavior is fake-server tested. Capture/resampling and audible
+The local synthetic provider has deterministic end-to-end carrier coverage.
+Qwen provider behavior is fake-server tested. Capture/resampling and audible
 playback are deterministic dependency-fake tested, including permission,
 worklet-crash, cap, ordering, backpressure, and teardown paths. Credentialed
 Qwen behavior and an exact packaged served-Web shell physical-device smoke

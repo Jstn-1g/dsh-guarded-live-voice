@@ -26,6 +26,13 @@
 
 ## Added in the v0.3 preview
 
+The bundled synthetic provider is a separate explicit identity, not a fallback
+from Qwen. Its exact destination is bound into the one-shot consent subject and
+ready authorization. It resolves no credential, opens no external provider
+connection, reads no microphone, retains only an input-byte count, and emits
+fixed local transcripts plus a bounded chime. Mixed-provider disclosure or
+authorization fails closed.
+
 The provider handshake binds the created and updated session identity, requires
 the requested allowlisted model, and confirms effective audio/text, PCM, manual-
 turn configuration. The one-turn capability bounds input/output chunks, turn

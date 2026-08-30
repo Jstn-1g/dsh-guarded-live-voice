@@ -96,34 +96,38 @@ receipt to the core and plugin revisions actually installed.
 Install the exact preview into the Web profile:
 
 ```sh
-dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.4
+dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.5
 ```
 
 Restart the Web profile, open a live Session, and inspect the composer tool row.
-The microphone control should be labeled **Open DSH Live Voice**. Opening it
-should show a disclosure panel with the audio destination, exported Harness
-context, execution authority, retention status, Session, Workspace, and expiry.
+The voice control should be labeled **Open DSH Live Voice**. Opening it
+should show a disclosure panel for **Local deterministic synthetic demo**, with
+the exported Harness context, execution authority, retention status, Session,
+Workspace, and expiry.
 
-Use a clean browser profile or reset the site's microphone permission before
-checking permission timing. At this point the browser must not have requested
-microphone permission. The provider credential must not be resolved and the
-provider connection must not open until **Continue setup** consumes the exact-
-session disclosure. A second explicit **Start recording** action is the only
-included path that may request microphone permission.
+The bundled `synthetic-demo` row must not request microphone permission, resolve
+a provider credential, or open an external provider connection. After
+**Continue setup**, choose **Start synthetic demo**, then **Finish demo and
+request response**. A fixed local response, two clearly synthetic transcripts,
+and a short bounded chime should appear. **Use my transcript as draft** must
+change only the still-current draft and must not submit it.
 
-An install-and-mount report can stop before **Continue setup**. It does not need
-a provider credential, microphone, speaker, or captured speech.
+An install-and-mount report can stop at any stage and record its last successful
+step. It does not need a provider credential, microphone, or captured speech.
 
 ## Provider configuration
 
 The installed bundle adds the compatibility-stable `guarded-live-voice` row.
-Override that row in the Web profile's local patch with a Model Studio workspace
-identifier and a credential reference, never a credential value:
+The installed row explicitly uses `provider: synthetic-demo`. To test Qwen,
+override that row in the Web profile's local patch with `provider: qwen`, a
+Model Studio workspace identifier, and a credential reference, never a
+credential value:
 
 ```yaml
 - id: guarded-live-voice
   name: dsh-live-voice
   config:
+    provider: qwen
     credentialRef: DASHSCOPE_API_KEY
     dashscopeWorkspaceId: your-workspace-id
     model: qwen-audio-3.0-realtime-plus
@@ -179,8 +183,10 @@ DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
   pnpm run smoke:harness:fake-qwen
 ```
 
-Revision boundary: the `v0.3.0-preview.4` source tag includes the exact-alpha.2
-authenticated composition smoke. The `v0.3.0-preview.3` source tag includes
+Revision boundary: the `v0.3.0-preview.5` source tag adds the explicit local
+synthetic provider. The `v0.3.0-preview.4` source tag includes the exact-alpha.2
+authenticated fake-provider composition smoke. The `v0.3.0-preview.3` source
+tag includes
 `smoke:harness:alpha-auth`, `smoke:browser:bfcache`, and
 `smoke:harness:browser:bfcache`, including the SPA Session-switch regression;
 the `v0.3.0-preview.1` source does not. The
@@ -205,6 +211,19 @@ requirements:
 DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
   pnpm run smoke:harness:alpha2-auth
 ```
+
+To install and exercise the bundled zero-credential provider instead of the
+Qwen-shaped fake server, run:
+
+```sh
+DSH_HARNESS_ROOT=/absolute/path/to/deepseek-harness \
+  pnpm run smoke:harness:alpha2-synthetic-demo
+```
+
+This path keeps the packed bundle's `provider: synthetic-demo` row, sets no
+credential or provider transport shim, requires the exact disclosure and fixed
+transcripts, validates the bounded chime, and proves turn and gateway disposal.
+It still does not exercise physical audio, live Qwen, BFCache, or Desktop.
 
 For a reproducible hosted path, fork or sync this repository, enable Actions in
 the fork, and manually run the

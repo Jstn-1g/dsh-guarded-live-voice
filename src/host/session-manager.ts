@@ -1,6 +1,6 @@
 import { AuthorityGuard, type AuthorityLease, type PublicAuthorityBinding } from './authority.js'
 import { ConsentChallenges, type ConsentSubject } from './consent.js'
-import type { AuthorizeProvider, ProviderAuthorization } from './provider.js'
+import type { AuthorizeProvider, ProviderAuthorization, VoiceProviderId } from './provider.js'
 import { GuardedVoiceError } from '../shared/errors.js'
 
 interface AwaitingConsent {
@@ -28,6 +28,7 @@ export interface BeginResult {
   readonly binding: PublicAuthorityBinding
   readonly challenge: string
   readonly expiresAt: number
+  readonly provider: VoiceProviderId
 }
 
 export interface ReadyResult {
@@ -43,7 +44,12 @@ export class VoiceSessionManager {
     private readonly authority: AuthorityGuard,
     private readonly consents: ConsentChallenges,
     private readonly authorizeProvider: AuthorizeProvider,
-  ) {}
+    private readonly provider: VoiceProviderId = 'qwen',
+  ) {
+    if (provider !== 'qwen' && provider !== 'synthetic-demo') {
+      throw new TypeError('voice provider must be qwen or synthetic-demo')
+    }
+  }
 
   begin(connectionId: string, sessionId: string): BeginResult {
     if (this.connections.has(connectionId)) {
@@ -58,7 +64,7 @@ export class VoiceSessionManager {
       challenge: issued.challenge,
       expiresAt: issued.expiresAt,
     })
-    return { binding: lease.binding, ...issued }
+    return { binding: lease.binding, ...issued, provider: this.provider }
   }
 
   async acceptConsent(connectionId: string, challenge: string): Promise<ReadyResult> {
@@ -78,6 +84,9 @@ export class VoiceSessionManager {
       const provider = await this.authorizeProvider(binding, authorizing.abortController.signal)
       if (this.connections.get(connectionId) !== authorizing) {
         throw new GuardedVoiceError('invalid-state', 'connection stopped during provider authorization')
+      }
+      if (provider.provider !== this.provider) {
+        throw new GuardedVoiceError('invalid-state', 'authorized provider does not match the disclosed provider')
       }
       this.authority.revalidate(current.lease)
       this.connections.set(connectionId, { phase: 'ready', lease: current.lease, provider })
@@ -131,7 +140,7 @@ export class VoiceSessionManager {
       connectionId,
       sessionId: binding.sessionId,
       workspaceId: binding.workspaceId,
-      provider: 'qwen',
+      provider: this.provider,
     }
   }
 }

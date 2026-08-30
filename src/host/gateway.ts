@@ -12,6 +12,7 @@ import {
   WIRE_VERSION,
   encodeServerControl,
   parseClientControl,
+  voiceProviderDisclosure,
   type ClientControl,
   type ServerControl,
 } from '../shared/wire.js'
@@ -188,6 +189,7 @@ export class GuardedVoiceGateway {
       client.consentTimer = setTimeout(() => {
         this.fail(connectionId, new GuardedVoiceError('consent-expired', 'disclosure acceptance expired'))
       }, Math.max(0, begun.expiresAt - Date.now()))
+      const providerDisclosure = voiceProviderDisclosure(begun.provider)
       this.send(client.socket, {
         v: WIRE_VERSION,
         type: 'consent.required',
@@ -195,14 +197,7 @@ export class GuardedVoiceGateway {
         expiresAt: begun.expiresAt,
         sessionId: begun.binding.sessionId,
         workspaceId: begun.binding.workspaceId,
-        provider: 'qwen',
-        disclosure: {
-          audioDestination: 'Alibaba Cloud Qwen realtime API',
-          exportedContext: 'none',
-          executionAuthority: 'none',
-          providerRetention: 'not specified for Qwen realtime audio',
-          currentMilestone: 'one bounded manual audio turn after acceptance',
-        },
+        ...providerDisclosure,
       })
       return
     }
