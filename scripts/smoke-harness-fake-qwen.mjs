@@ -32,9 +32,23 @@ const PLUGIN_NAME = 'dsh-live-voice'
 const ROUTE = '/guarded-voice'
 const MODEL = 'qwen-audio-3.0-realtime-plus'
 const WORKSPACE_SLUG = 'voice-smoke'
-const EXPECTED_ALPHA_COMMIT = 'cd5ef8148158c3a752a658978873241fdf8e2bbc'
-const EXPECTED_ALPHA_TAG = 'dsh-v0.1.2-alpha.1'
-const EXPECTED_ALPHA_VERSION = '0.1.2-alpha.1'
+const ALPHA_TARGETS = new Map([
+  ['0.1.2-alpha.1', {
+    commit: 'cd5ef8148158c3a752a658978873241fdf8e2bbc',
+    tag: 'dsh-v0.1.2-alpha.1',
+  }],
+  ['0.1.2-alpha.2', {
+    commit: '0a53fb55bea101816fa226bb964ae2bed71c343b',
+    tag: 'dsh-v0.1.2-alpha.2',
+  }],
+])
+const EXPECTED_ALPHA_VERSION = process.env.DSH_VOICE_SMOKE_ALPHA_VERSION ?? '0.1.2-alpha.1'
+const alphaTarget = ALPHA_TARGETS.get(EXPECTED_ALPHA_VERSION)
+if (alphaTarget === undefined) {
+  throw new Error(`unsupported exact Harness alpha target: ${EXPECTED_ALPHA_VERSION}`)
+}
+const EXPECTED_ALPHA_COMMIT = alphaTarget.commit
+const EXPECTED_ALPHA_TAG = alphaTarget.tag
 const FAKE_CREDENTIAL = 'deterministic-fake-qwen-token'
 const EXPECTED_AUDIO = Buffer.from([1, 0, 2, 0])
 const EXPECTED_USER_TRANSCRIPT = 'deterministic user transcript'

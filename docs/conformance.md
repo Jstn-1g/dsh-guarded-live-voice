@@ -135,6 +135,29 @@ range admits this exact alpha in addition to the existing rc line; it does
 credential-backed Qwen, request a physical microphone or speaker, inspect an
 OS device indicator, exercise BFCache, or exercise packaged Desktop.
 
+## Official DSH alpha.2 authenticated composition smoke
+
+`pnpm run smoke:harness:alpha2-auth` applies the same fail-closed authenticated
+composition contract to an exact, clean, source-built
+`dsh-v0.1.2-alpha.2` checkout at
+`0a53fb55bea101816fa226bb964ae2bed71c343b`. It requires the official Web client
+artifact receipt, packs the current plugin, installs it through the official
+CLI into a disposable shipped `web` profile, rejects an unauthenticated voice
+upgrade, exchanges the private launch token in memory, and completes one
+deterministic fake-provider voice turn through the authenticated workspace and
+Session RPC path.
+
+The recorded post-preview.3 `main` run used Node 24.19.0 and pnpm 11.7.0. It
+validated 220 official client artifacts with SHA-256
+`b4eda9de7c289a97164a7f1c7c90f4a3ee3f601ca6c1a90d70ff5e600242a3c4` and a
+Web index with SHA-256
+`d666c73f848b9c4a72501750750194231fa97bdb507f17b8b3bf692fac1eaab9`. This
+evidence belongs to the tested `main` revision, not immutable preview.3. The
+explicit peer range admits alpha.2 but does not admit later alpha versions.
+This smoke does not use credential-backed Qwen, request a physical microphone
+or speaker, inspect an OS device indicator, exercise BFCache, or exercise
+packaged Desktop.
+
 ## Controlled Chromium raw-unload smoke
 
 `pnpm run smoke:browser:unload` builds the current client bundle and starts a

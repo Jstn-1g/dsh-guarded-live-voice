@@ -25,10 +25,11 @@ part of that release. Bind every result to the exact revision that was tested.
 
 ### Runtime support
 
-| Runtime | Preview status |
+| Runtime | Status |
 | --- | --- |
 | Shipped DSH `web` profile on v0.1.1-rc.2 | Preview.3 packed fake-provider composition passed. Preview.2 recorded the official Web-profile BFCache receipt; that older receipt is not rebound to this artifact. Physical audio, live Qwen, and independent reproduction remain open. |
-| Exact source-built `dsh-v0.1.2-alpha.1` Web profile | Authenticated composition, official Web-profile BFCache, and an active SPA Session switch passed with synthetic audio and a fake provider. The peer range admits this exact alpha only; later alpha builds are not inferred. |
+| Exact source-built `dsh-v0.1.2-alpha.1` Web profile | Preview.3 authenticated composition, official Web-profile BFCache, and an active SPA Session switch passed with synthetic audio and a fake provider. Preview.3 admits this exact alpha only; later `main` evidence is not rebound to that artifact. |
+| Exact source-built `dsh-v0.1.2-alpha.2` Web profile | Post-preview.3 `main` passed the authenticated packed-plugin composition smoke with synthetic audio and a fake provider. The explicit peer range admits alpha.2 and rejects unverified later alphas. This is not preview.3 release evidence. |
 | Community packaged shell embedding the served Web profile over HTTP(S) | Structurally compatible candidate, not a pass. The exact Tauri v0.9.3 install/restart/uninstall run is tracked in [issue #9](https://github.com/Jstn-1g/dsh-live-voice/issues/9). |
 | Harness-documented packaged `file://` + Fetch-over-IPC model | Not supported by the current direct WebSocket carrier. A public transport seam or validated Remote redesign is tracked in [issue #20](https://github.com/Jstn-1g/dsh-live-voice/issues/20). |
 
@@ -128,15 +129,19 @@ consent and Session binding. It used synthetic audio and a fake loopback
 provider; independent reproduction and a packaged served-Web shell receipt
 remain open. The separate `file://` + IPC Desktop architecture needs the
 portable-carrier work in issue #20 before it can be tested. A separate
-authenticated composition smoke now verifies the exact,
-clean source-built DSH `dsh-v0.1.2-alpha.1` Web profile: an unauthenticated voice
+authenticated composition smoke verifies the exact, clean source-built DSH
+`dsh-v0.1.2-alpha.1` Web profile: an unauthenticated voice
 upgrade receives `401`, the private launch token is exchanged for the Harness
 cookie without entering the receipt, and the authenticated client, workspace,
 Session, and fake-provider voice turn complete. Preview.3 additionally records
 real BFCache restoration and active SPA Session-switch teardown through that
-exact alpha's shipped Web UI. The published peer range admits only this pinned
-alpha in addition to the existing rc line; it does not claim later alpha
-compatibility. This is not a marketplace-ready voice product
+exact alpha's shipped Web UI. The immutable preview.3 peer range admits only
+this pinned alpha in addition to the existing rc line. Post-preview.3 `main`
+separately admits exact `0.1.2-alpha.2` after a clean source build, coherent
+peer-graph check, and authenticated packed-plugin fake-provider composition
+smoke against upstream commit
+`0a53fb55bea101816fa226bb964ae2bed71c343b`. Neither result establishes later
+or broad alpha compatibility. This is not a marketplace-ready voice product
 and is not “ChatGPT
 Live parity.” DSH Live Voice is the product name; the guarded consent and
 authority model remains its security architecture.
@@ -213,8 +218,9 @@ stable, marketplace-ready, or officially endorsed product.
 ## Development
 
 Requirements: Node.js 22.19 or newer within the 22.x line, or Node.js 24.12+,
-and pnpm 11.7. Harness's current Web loader is not supported on Node 24.0
-through 24.11.1.
+and pnpm 11.7. The supported rc.2 Web loader is not supported on Node 24.0
+through 24.11.1; alpha.2 has a newer floor, but this plugin keeps the
+conservative shared range while rc.2 remains supported.
 
 ```sh
 pnpm install
