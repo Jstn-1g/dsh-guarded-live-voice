@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Passing and failing results are both useful. A report is evidence only for the exact environment and path described here; maintainers independently review evidence before changing a release gate.
+        Passing and failing results are both useful. A report is evidence only for the exact artifact, environment, and path described here; maintainers independently review evidence before changing a release gate.
   - type: dropdown
     id: scope
     attributes:
@@ -22,6 +22,20 @@ body:
         - BFCache navigation and restore
         - Packaged Desktop restart or uninstall
         - Other bounded path
+    validations:
+      required: true
+  - type: dropdown
+    id: artifact-kind
+    attributes:
+      label: Artifact kind
+      description: Select the exact runtime carrier exercised by this report.
+      options:
+        - Source-built DSH Web profile
+        - Packed or installed DSH Web profile
+        - Served-Web packaged shell
+        - file:// + IPC packaged shell
+        - Standalone browser fixture
+        - Other exact artifact
     validations:
       required: true
   - type: input
@@ -40,10 +54,33 @@ body:
     validations:
       required: true
   - type: textarea
+    id: artifact-identity
+    attributes:
+      label: Immutable artifact identity
+      description: Record the install or source channel, exact source commit, and the asset filename plus SHA-256 when an asset was used. Mark a field Not applicable only when it does not exist.
+      placeholder: Source commit; release asset filename and SHA-256; sanitized install command or source channel/reference
+    validations:
+      required: true
+  - type: textarea
     id: environment
     attributes:
       label: Environment
-      description: Include OS, architecture, profile, browser or Desktop version, install source, and relevant device model without personal identifiers.
+      description: Include exact OS build, architecture, Node and pnpm versions, DSH profile, browser and automation or Desktop version, and relevant device model without personal identifiers. Mark unrecorded fields Not recorded.
+    validations:
+      required: true
+  - type: textarea
+    id: state-transitions
+    attributes:
+      label: Session and consent state transitions
+      description: List the visible Session, consent, and voice-controller state names in order. For an install-only path, enter Not applicable and explain why. Use stable labels, not real Session IDs, challenges, tokens, cookies, transcripts, or workspace names.
+      placeholder: idle -> awaiting-consent -> ready -> recording -> responding -> complete -> idle
+    validations:
+      required: true
+  - type: textarea
+    id: provider-boundary
+    attributes:
+      label: Provider request-shape and export boundary
+      description: For a live provider path, record provider/model selection and an allowlist check of outbound request field names and types. Explicitly report observed or not observed for DSH history, files, Workspace or system instructions, tool schemas, memory, and arbitrary text. Include only redacted status class, field or byte counts, and terminal reason; never paste values or a provider payload. For a non-provider path, enter Not applicable and explain why.
     validations:
       required: true
   - type: textarea
@@ -68,7 +105,7 @@ body:
     id: observations
     attributes:
       label: Observations and sanitized evidence
-      description: Include bounded timings, visible states, or minimal errors. Do not attach audio or private content.
+      description: Include bounded timings, visible states, or minimal errors. Do not attach audio, payloads, or private content.
     validations:
       required: true
   - type: checkboxes
@@ -77,6 +114,8 @@ body:
       label: Evidence boundaries
       options:
         - label: I did not include credentials, recordings, private transcripts, workspace content, personal data, or identifying logs.
+          required: true
+        - label: I did not include real Session IDs, challenges, launch tokens, cookies, raw provider payloads, or unsanitized paths.
           required: true
         - label: I understand this report does not prove other environments, close another gate, or make the preview stable or officially endorsed.
           required: true
