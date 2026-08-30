@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 
 const WORKFLOW = new URL('../../.github/workflows/alpha-auth-proof.yml', import.meta.url)
+const README = new URL('../../README.md', import.meta.url)
 const PLUGIN_COMMIT = '10bd8bf504cf17fb24523f2c18e9f8a586a41167'
 const HARNESS_COMMIT = 'cd5ef8148158c3a752a658978873241fdf8e2bbc'
 
@@ -38,5 +39,15 @@ describe('exact-alpha authenticated Web proof workflow', () => {
     expect(source).toContain('DSH_HARNESS_ROOT: ${{ github.workspace }}/harness')
     expect(source).toContain("DSH_VOICE_SMOKE_INSTALL_ONLINE: '1'")
     expect(source).toContain('run: pnpm run smoke:harness:alpha-auth')
+  })
+
+  it('is discoverable from the primary no-secret tester path', async () => {
+    const readme = await readFile(README, 'utf8')
+    const prose = readme.replace(/\s+/gu, ' ')
+
+    expect(readme).toContain('[No-secret tester task](https://github.com/Jstn-1g/dsh-live-voice/issues/19)')
+    expect(readme).toContain('[`Exact-alpha authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha-auth-proof.yml)')
+    expect(prose).toContain('it requests no secrets, so do not add any')
+    expect(prose).toContain('A run owned by this repository is maintainer repeatability evidence, not the independent reproduction requested by that issue')
   })
 })

@@ -7,6 +7,7 @@
 [Preview release](https://github.com/Jstn-1g/dsh-live-voice/releases/tag/v0.3.0-preview.3)
 · [Contributing](CONTRIBUTING.md)
 · [Testing guide](TESTING.md)
+· [No-secret tester task](https://github.com/Jstn-1g/dsh-live-voice/issues/19)
 · [Release gate](https://github.com/Jstn-1g/dsh-live-voice/issues/5)
 
 A safety-first live-voice add-on for the served DeepSeek Harness Web profile
@@ -169,6 +170,17 @@ requires the live-provider and physical-device checks tracked in the release
 gate before a release candidate or stable release.
 
 ## Help validate the preview
+
+For a credential-free contribution, fork or sync this repository, enable
+Actions, and manually run the
+[`Exact-alpha authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha-auth-proof.yml).
+Then add the independently owned run link and its sanitized JSON receipt to
+[issue #19](https://github.com/Jstn-1g/dsh-live-voice/issues/19). The workflow
+checks immutable preview.3 against the exact supported alpha without a provider
+credential or physical audio devices. Its disposable profile may resolve the
+preview's declared public dependencies from npm; it requests no secrets, so do
+not add any. A run owned by this repository is maintainer repeatability
+evidence, not the independent reproduction requested by that issue.
 
 Useful reports are welcome even when they uncover a failure. Use the structured
 [tester report](https://github.com/Jstn-1g/dsh-live-voice/issues/new?template=tester-report.yml)
