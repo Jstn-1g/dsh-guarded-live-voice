@@ -24,11 +24,10 @@ import { release, tmpdir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { WebSocket, WebSocketServer } from 'ws'
+import { shouldRunAlphaAuth } from './smoke-harness-alpha-mode.mjs'
 
 const runBrowserBfcache = process.env.DSH_VOICE_SMOKE_BROWSER_BFCACHE === '1'
-const runAlphaAuth = process.env.DSH_VOICE_SMOKE_ALPHA_AUTH === '1'
-const runOfficialSource = runBrowserBfcache || runAlphaAuth
-const PROFILE = runOfficialSource ? 'web' : 'dsh-live-voice-fake-qwen-smoke'
+const alphaAuthRequested = process.env.DSH_VOICE_SMOKE_ALPHA_AUTH === '1'
 const PLUGIN_NAME = 'dsh-live-voice'
 const ROUTE = '/guarded-voice'
 const MODEL = 'qwen-audio-3.0-realtime-plus'
@@ -57,6 +56,15 @@ if (harnessValue === undefined || harnessValue.trim() === '') {
   throw new Error('DSH_HARNESS_ROOT must name a built official DeepSeek Harness checkout')
 }
 const harnessRoot = resolve(harnessValue)
+const harnessVersion = JSON.parse(await readFile(join(harnessRoot, 'package.json'), 'utf8')).version
+const runAlphaAuth = shouldRunAlphaAuth({
+  alphaAuthRequested,
+  harnessVersion,
+  runBrowserBfcache,
+  supportedAlphaVersion: EXPECTED_ALPHA_VERSION,
+})
+const runOfficialSource = runBrowserBfcache || runAlphaAuth
+const PROFILE = runOfficialSource ? 'web' : 'dsh-live-voice-fake-qwen-smoke'
 const cliBin = join(harnessRoot, 'apps', 'cli', 'src', 'bin.ts')
 const webIndex = join(harnessRoot, 'apps', 'web', 'dist', 'index.html')
 const packageManagerEntry = process.env.npm_execpath

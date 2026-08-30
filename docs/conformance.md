@@ -168,11 +168,14 @@ itself close the BFCache release gate.
 ## Official DSH Web-profile BFCache smoke
 
 `pnpm run smoke:harness:browser:bfcache` requires `DSH_HARNESS_ROOT` to name an
-exact, clean Harness source checkout with its dependencies installed. It
+exact, clean Harness source checkout with its dependencies installed. The
+smoke selects authentication for the exact admitted alpha version and requires
+its pinned commit, tag, and one-time launch-token exchange before any profile
+RPC or plugin upgrade; non-tokenized rc launches retain their existing path. It
 rebuilds that checkout's Host and Client libraries and Web bundle with the
 official client build values, writes and verifies the upstream client-artifact
-receipt, packs the current plugin, and installs it through the official CLI
-into a disposable shipped `web` profile. A headed stable Chrome then drives the
+receipt, packs the current plugin, and installs it through the official CLI into
+a disposable shipped `web` profile. A headed stable Chrome then drives the
 actual DSH Web UI through isolated idle and active history traversals.
 
 A pass requires three distinct BFCache signals: an unchanged document boot

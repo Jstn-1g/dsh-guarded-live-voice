@@ -281,7 +281,10 @@ device, live provider, exact official DSH Web profile, or packaged Desktop path.
 
 The opt-in official Web-profile BFCache smoke requires a clean, exact Harness
 checkout with its dependencies installed and a locally installed stable Google
-Chrome. It rebuilds the Harness Host, Client, and Web artifacts with the
+Chrome. For the exact admitted alpha version, the smoke selects the authenticated
+path and requires the pinned commit, tag, and one-time launch-token exchange
+before any profile RPC or plugin upgrade; non-tokenized rc launches retain their
+existing path. It rebuilds the Harness Host, Client, and Web artifacts with the
 official client build values, installs the current packed plugin through the
 official CLI into a disposable shipped `web` profile, and drives both idle and
 active cases through the real DSH UI:
