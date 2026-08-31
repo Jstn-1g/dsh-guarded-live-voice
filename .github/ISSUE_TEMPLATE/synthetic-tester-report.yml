@@ -1,0 +1,101 @@
+name: Two-minute synthetic tester report
+description: Report the last stage reached in the credential-free Preview.5 demo.
+title: "[Preview.5 synthetic test]: "
+labels:
+  - testing
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing the fixed, credential-free Preview.5 path from issue #58.
+        A stopping point is as useful as a pass. Do not include credentials, recordings,
+        real transcripts, Session IDs, workspace content, tokens, cookies, personal data,
+        identifying logs, or absolute local paths.
+  - type: input
+    id: voice-version
+    attributes:
+      label: DSH Live Voice version
+      description: Keep this exact tag when following the Preview.5 tester path.
+      value: v0.3.0-preview.5
+    validations:
+      required: true
+  - type: input
+    id: harness-version
+    attributes:
+      label: DSH version
+      description: Run dsh --version and enter only that value; do not paste a log or path.
+      placeholder: dsh-v0.1.2-alpha.2
+    validations:
+      required: true
+  - type: input
+    id: browser-version
+    attributes:
+      label: Browser and version
+      placeholder: Edge 152.0.0.0 or Chrome 151.0.0.0
+    validations:
+      required: true
+  - type: input
+    id: windows-version
+    attributes:
+      label: Windows version
+      description: A release and build number is enough; do not include a device name.
+      placeholder: Windows 11 24H2, build 26100
+    validations:
+      required: true
+  - type: dropdown
+    id: furthest-stage
+    attributes:
+      label: Furthest stage reached
+      description: Select the last stage that worked, even if a later stage failed.
+      options:
+        - Install command not started
+        - Install command started
+        - Install completed
+        - Profile restarted
+        - Open DSH Live Voice control appeared
+        - Disclosure opened
+        - Synthetic turn started
+        - Response and transcripts appeared
+        - Transcript placed into draft
+        - Full test completed
+    validations:
+      required: true
+  - type: checkboxes
+    id: observed
+    attributes:
+      label: What did you directly observe?
+      description: Check only stages you personally reached. It is fine to leave boxes unchecked.
+      options:
+        - label: The install command completed.
+        - label: Open DSH Live Voice appeared.
+        - label: The disclosure named Local deterministic synthetic demo.
+        - label: The fixed response, both fixed transcripts, and the short chime appeared.
+        - label: Use my transcript as draft changed the current draft and did not submit it.
+  - type: textarea
+    id: stopping-point
+    attributes:
+      label: Where did you stop or hesitate?
+      description: If you completed the path, enter Completed and name the least-clear step.
+      placeholder: The visible step or smallest sanitized error; no logs or private values
+    validations:
+      required: true
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Outcome
+      options:
+        - Passed
+        - Failed
+        - Partially passed
+        - Inconclusive
+    validations:
+      required: true
+  - type: checkboxes
+    id: attestations
+    attributes:
+      label: Report boundaries
+      options:
+        - label: I personally ran this exact path in my own test environment; this is not a download-only or second-hand report.
+          required: true
+        - label: I did not include credentials, recordings, real transcripts, Session IDs, workspace content, tokens, cookies, personal data, identifying logs, or absolute local paths.
+          required: true
