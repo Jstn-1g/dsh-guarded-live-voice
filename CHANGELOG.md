@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add a focused Preview.5 synthetic tester form that records the exact runtime,
+  last successful stage, observed checkpoints, outcome, and stopping point with
+  first-hand and privacy-safe attestations. The two-minute path now also checks
+  the DSH plugin command's required pnpm dependency before install. The general
+  release-evidence form remains available for provider, device, lifecycle, and
+  packaged-shell paths.
 - Admit exact DSH `0.1.2-alpha.3` only after a clean source build and both
   authenticated packed-plugin composition smokes passed at upstream commit
   `dd6322d604e00eec1ba5e0c8541159906a21094a`. The deterministic fake-provider

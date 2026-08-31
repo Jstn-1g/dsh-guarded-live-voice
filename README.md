@@ -6,7 +6,7 @@
 
 [Try it in two minutes](#two-minute-synthetic-test)
 · [Watch the 24-second demo](assets/dsh-live-voice-synthetic-demo.mp4)
-· [Report the stopping point](https://github.com/Jstn-1g/dsh-live-voice/issues/58)
+· [Report the stopping point](https://github.com/Jstn-1g/dsh-live-voice/issues/new?template=synthetic-tester-report.yml)
 · [Preview release](https://github.com/Jstn-1g/dsh-live-voice/releases/tag/v0.3.0-preview.5)
 
 DSH Live Voice is built for one bounded voice turn: speak, hear returned audio,
@@ -33,10 +33,13 @@ physical audio I/O or packaged Desktop.
 
 ## Two-minute synthetic test
 
-Requirements: a DSH Web profile, Chrome or Edge, and a disposable test profile
-or environment. No Qwen credential or microphone permission is needed.
+Requirements: a DSH Web profile, pnpm on `PATH`, Chrome or Edge, and a
+disposable test profile or environment. No Qwen credential or microphone
+permission is needed. Check the required package manager is available, then
+install the immutable preview:
 
 ```sh
+pnpm --version
 dsh plugin --profile web add github:Jstn-1g/dsh-live-voice#v0.3.0-preview.5
 ```
 
@@ -51,7 +54,7 @@ current draft; it does not submit it.
 dsh plugin --profile web remove dsh-live-voice
 ```
 
-Tried it? [Report the last stage that worked](https://github.com/Jstn-1g/dsh-live-voice/issues/58).
+Tried it? [Report the last stage that worked](https://github.com/Jstn-1g/dsh-live-voice/issues/new?template=synthetic-tester-report.yml).
 A failure is as useful as a pass. Do not post recordings, credentials, real
 transcripts, Session IDs, workspace content, tokens, cookies, or identifying
 logs.
@@ -260,12 +263,14 @@ or stable release.
 
 We need five founding testers using Windows with Chrome or Edge. Install
 Preview.5 in a disposable Web profile, run the two-minute synthetic test above,
-and submit the structured
-[tester report](https://github.com/Jstn-1g/dsh-live-voice/issues/new?template=tester-report.yml),
+and submit the focused
+[two-minute tester report](https://github.com/Jstn-1g/dsh-live-voice/issues/new?template=synthetic-tester-report.yml),
 including the last setup stage you reached and where you hesitated or stopped.
 No credential, recording, real transcript, Session id, or private log should be
-shared. Useful reports will be credited in the release notes and contributors
-section with the tester's consent. The
+shared. The full cohort request and exact artifact identity remain in
+[issue #58](https://github.com/Jstn-1g/dsh-live-voice/issues/58). Useful reports
+will be credited in the release notes and contributors section with the
+tester's consent. The
 [adoption measurement](docs/adoption.md) counts completed external outcomes and
 explicit stopping points, not clones or asset downloads.
 
