@@ -250,8 +250,9 @@ section with the tester's consent. The
 [adoption measurement](docs/adoption.md) counts completed external outcomes and
 explicit stopping points, not clones or asset downloads.
 
-For a separate credential-free compatibility contribution, fork or sync this
-repository, enable Actions, and manually run the
+For a separate credential-free compatibility contribution, use the
+[No-secret tester task](https://github.com/Jstn-1g/dsh-live-voice/issues/19):
+fork or sync this repository, enable Actions, and manually run the
 [`Exact-alpha.2 authenticated Web proof`](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/alpha2-auth-proof.yml).
 Then add the independently owned run link and its sanitized JSON receipt to
 [issue #19](https://github.com/Jstn-1g/dsh-live-voice/issues/19). The workflow
