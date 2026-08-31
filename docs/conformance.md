@@ -171,6 +171,36 @@ This proves the packed in-process demo on that exact served-Web alpha.2
 composition. It does not prove a physical microphone or speaker, BFCache,
 packaged Desktop, credential-backed Qwen, a live provider, or any later alpha.
 
+## Official DSH alpha.3 authenticated composition smokes
+
+`pnpm run smoke:harness:alpha3-auth` and
+`pnpm run smoke:harness:alpha3-synthetic-demo` apply the same fail-closed
+contracts to an exact, clean, source-built `dsh-v0.1.2-alpha.3` checkout at
+`dd6322d604e00eec1ba5e0c8541159906a21094a`. Both pack the current plugin,
+install it through the official CLI into a disposable shipped `web` profile,
+require an unauthenticated voice upgrade to receive `401`, exchange the private
+launch token only in memory, and bind authenticated Workspace and Session RPC.
+
+The recorded post-release `main` run used Live Voice commit
+`4a5959c7bc6177f039880350e7914f59bfda7486`, Node 24.19.0, and pnpm 11.7.0.
+The exact Harness build produced 220 official client artifacts; their aggregate
+SHA-256 was
+`9ea788d128d4f5a12cde2b8893d581e9a27fcf4cc5bf88e6f6247d97e1cc510a`, and
+the Web index SHA-256 was
+`444492712f6d5f5c6a0e6741ebd2db04b929d88a269c768102f28b50e6384ab6`.
+The fake-provider path completed the exact four-event manual turn. The bundled
+synthetic path used no credential, external provider server, or transport shim
+and produced the fixed transcripts plus one 4,800-byte deterministic chime.
+Both paths disposed their provider and gateway resources.
+
+These receipts apply only to that Live Voice revision and exact alpha.3 source
+commit. They do not rebind immutable Preview.5 or prove credential-backed Qwen,
+a physical microphone or speaker, BFCache, packaged Desktop, a live provider,
+or any later alpha. Alpha.3 intentionally removes the optional SQLite Session
+persistence backend; export an SQLite-backed profile with its older DSH version
+before upgrading, and never downgrade a Session store in place after a newer
+release has written it.
+
 ## Controlled Chromium raw-unload smoke
 
 `pnpm run smoke:browser:unload` builds the current client bundle and starts a

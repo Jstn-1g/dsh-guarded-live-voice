@@ -21,7 +21,7 @@ body:
     attributes:
       label: DeepSeek Harness version
       description: Use the exact release tag or commit SHA when possible.
-      placeholder: dsh-v0.1.2-alpha.2 or an exact commit SHA
+      placeholder: dsh-v0.1.2-alpha.3 or an exact commit SHA
     validations:
       required: true
   - type: textarea

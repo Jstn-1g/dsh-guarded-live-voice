@@ -20,7 +20,7 @@ body:
     id: harness-version
     attributes:
       label: DeepSeek Harness version
-      placeholder: dsh-v0.1.2-alpha.2 or an exact commit SHA
+      placeholder: dsh-v0.1.2-alpha.3 or an exact commit SHA
     validations:
       required: true
   - type: textarea

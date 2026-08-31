@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Admit exact DSH `0.1.2-alpha.3` only after a clean source build and both
+  authenticated packed-plugin composition smokes passed at upstream commit
+  `dd6322d604e00eec1ba5e0c8541159906a21094a`. The deterministic fake-provider
+  and bundled credential-free synthetic paths each verified launch-token
+  exchange, authenticated Workspace/Session RPC, exact-Session binding, one
+  completed turn, transcripts, and disposal. Future alpha versions remain
+  excluded. This applies to post-release `main`, not immutable Preview.5, and
+  does not prove credential-backed Qwen, physical audio, BFCache, or packaged
+  Desktop.
+- Document alpha.3's intentional removal of the optional SQLite Session
+  persistence backend. DSH Live Voice does not use that backend, but an
+  SQLite-backed profile must be exported with its older DSH version before
+  upgrading; a newer-written Session store must not be downgraded in place.
+
 ## 0.3.0-preview.5
 
 - Add a separate no-secret hosted proof pinned to immutable preview.4 and exact
