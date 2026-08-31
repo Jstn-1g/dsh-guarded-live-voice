@@ -64,15 +64,17 @@ part of that release. Bind every result to the exact revision that was tested.
 
 ### Runtime support
 
-Every row names the immutable artifact that produced its evidence. An older
-Preview.4 result remains evidence only for Preview.4; it is not rebound to
-Preview.5 by appearing in this release's documentation.
+Every row names the exact artifact or revision that produced its evidence. An
+older Preview.4 result remains evidence only for Preview.4; it is not rebound
+to Preview.5 by appearing in this release's documentation. Likewise, a
+post-release `main` result does not alter immutable Preview.5.
 
 | Runtime | Status |
 | --- | --- |
 | Shipped DSH `web` profile on v0.1.1-rc.2 | Preview.4 packed fake-provider composition passed. Preview.2 recorded the official Web-profile BFCache receipt; that older receipt is not rebound to this artifact. Physical audio, live Qwen, and independent reproduction remain open. |
 | Exact source-built `dsh-v0.1.2-alpha.1` Web profile | Preview.4 authenticated packed-plugin composition passed. Preview.3 recorded official Web-profile BFCache and an active SPA Session switch with synthetic audio and a fake provider; those browser receipts remain bound to preview.3. |
 | Exact source-built `dsh-v0.1.2-alpha.2` Web profile | Preview.5 packed installation passed using its bundled synthetic provider: authenticated Workspace/Session RPC, exact disclosure, fixed transcripts, bounded chime, disposal, no credential, and no external provider server. The explicit fake-Qwen path also passed. Physical audio, live Qwen, BFCache, and later alphas remain unproven. |
+| Exact source-built `dsh-v0.1.2-alpha.3` Web profile | Post-release candidate `3f80cc79` passed authenticated packed-plugin composition with both the deterministic fake provider and bundled credential-free synthetic provider. Launch-token exchange, Workspace/Session RPC, exact-Session binding, one completed turn, transcripts, and disposal passed. Immutable Preview.5 still excludes alpha.3. Physical audio, live Qwen, BFCache, packaged Desktop, and later alphas remain unproven. |
 | Community packaged shell embedding the served Web profile over HTTP(S) | Structurally compatible candidate, not a pass. The exact Tauri v0.9.3 install/restart/uninstall run is tracked in [issue #9](https://github.com/Jstn-1g/dsh-live-voice/issues/9). |
 | Harness-documented packaged `file://` + Fetch-over-IPC model | Not supported by the current direct WebSocket carrier. A public transport seam or validated Remote redesign is tracked in [issue #20](https://github.com/Jstn-1g/dsh-live-voice/issues/20). |
 
@@ -191,6 +193,23 @@ external provider server. This is not a marketplace-ready voice product
 and is not “ChatGPT
 Live parity.” DSH Live Voice is the product name; the guarded consent and
 authority model remains its security architecture.
+
+Post-release `main` separately admits exact `0.1.2-alpha.3` after the same
+authenticated fake-provider and bundled synthetic-provider paths passed at
+upstream commit `dd6322d604e00eec1ba5e0c8541159906a21094a`. Those results bind
+only to Live Voice commit `3f80cc790be8858ab1fbb2acf6761428cd362647`;
+they do not modify or relabel Preview.5. Alpha.3 intentionally removes DSH's
+optional SQLite Session
+persistence backend. Live Voice does not use it, but SQLite-backed profiles
+must be exported using their older DSH version before upgrading. Do not point
+an older DSH build at a Session store already written by a newer release.
+
+The regular development lock remains on alpha.2 while the newly published
+alpha.3 package cohort completes this repository's 24-hour minimum-release-age
+quarantine. The exact alpha.3 compatibility claim comes from the isolated
+source-built composition above and the explicit peer ranges, not from weakening
+that supply-chain policy. A later lockfile update must pass the same policy and
+full check before it can replace the development cohort.
 
 The disclosure flow is user-visible, but it is not cryptographic proof that a
 human accepted it. The one-shot challenge proves control of that local client

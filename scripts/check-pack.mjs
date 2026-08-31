@@ -24,6 +24,11 @@ for (const [name, range] of Object.entries(packageManifest.peerDependencies)) {
   )
   assert.equal(
     satisfies('0.1.2-alpha.3', range),
+    true,
+    `${name} peer range must admit the verified official DSH 0.1.2-alpha.3 baseline`,
+  )
+  assert.equal(
+    satisfies('0.1.2-alpha.4', range),
     false,
     `${name} peer range must not infer unverified future alpha builds`,
   )

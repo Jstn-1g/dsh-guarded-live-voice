@@ -3,6 +3,15 @@ import { satisfies } from 'semver'
 import { describe, expect, it } from 'vitest'
 
 describe('preview package metadata', () => {
+  it('enforces the release-age quarantine without waiving alpha.3', async () => {
+    const workspace = await readFile(
+      new URL('../../pnpm-workspace.yaml', import.meta.url),
+      'utf8',
+    )
+    expect(workspace).toMatch(/^minimumReleaseAge: 1440$/mu)
+    expect(workspace).not.toContain('0.1.2-alpha.3')
+  })
+
   it('declares the DSH Live Voice browser face without claiming full duplex', async () => {
     const manifest = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8')) as {
       description?: string
@@ -45,7 +54,7 @@ describe('preview package metadata', () => {
     expect(peers).not.toHaveProperty('@deepseek-ai/dsh-client-runtime')
     expect(manifest.devDependencies).not.toHaveProperty('@deepseek-ai/dsh-client-runtime')
     expect(manifest.devDependencies?.['@deepseek-ai/dsh-client-store']).toBe('0.1.2-alpha.2')
-    const expectedDshRange = '^0.1.1-rc.1 || 0.1.2-alpha.1 || 0.1.2-alpha.2'
+    const expectedDshRange = '^0.1.1-rc.1 || 0.1.2-alpha.1 || 0.1.2-alpha.2 || 0.1.2-alpha.3'
     expect(peers['@deepseek-ai/dsh-client-ui-renderer']).toBe(expectedDshRange)
     for (const [name, range] of Object.entries(peers)) {
       if (name.startsWith('@deepseek-ai/dsh-')) {
@@ -53,7 +62,8 @@ describe('preview package metadata', () => {
         expect(satisfies('0.1.1-rc.2', range), `${name} accepts current rc`).toBe(true)
         expect(satisfies('0.1.2-alpha.1', range), `${name} accepts verified alpha.1`).toBe(true)
         expect(satisfies('0.1.2-alpha.2', range), `${name} accepts verified alpha.2`).toBe(true)
-        expect(satisfies('0.1.2-alpha.3', range), `${name} rejects unverified future alpha`).toBe(false)
+        expect(satisfies('0.1.2-alpha.3', range), `${name} accepts verified alpha.3`).toBe(true)
+        expect(satisfies('0.1.2-alpha.4', range), `${name} rejects unverified future alpha`).toBe(false)
       }
     }
   })
