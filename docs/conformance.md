@@ -181,11 +181,11 @@ install it through the official CLI into a disposable shipped `web` profile,
 require an unauthenticated voice upgrade to receive `401`, exchange the private
 launch token only in memory, and bind authenticated Workspace and Session RPC.
 
-The recorded post-release `main` run used Live Voice commit
-`4a5959c7bc6177f039880350e7914f59bfda7486`, Node 24.19.0, and pnpm 11.7.0.
+The recorded post-release candidate run used Live Voice commit
+`3f80cc790be8858ab1fbb2acf6761428cd362647`, Node 24.19.0, and pnpm 11.7.0.
 The exact Harness build produced 220 official client artifacts; their aggregate
 SHA-256 was
-`9ea788d128d4f5a12cde2b8893d581e9a27fcf4cc5bf88e6f6247d97e1cc510a`, and
+`50aa1a17a5b00e3c12fcf7b3307af2e069a4b7a291c33c4b102b372022a665d1`, and
 the Web index SHA-256 was
 `444492712f6d5f5c6a0e6741ebd2db04b929d88a269c768102f28b50e6384ab6`.
 The fake-provider path completed the exact four-event manual turn. The bundled
