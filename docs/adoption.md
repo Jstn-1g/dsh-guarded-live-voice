@@ -8,7 +8,7 @@ release and environment that produced it.
 | --- | --- | --- |
 | External install reported | A non-maintainer report identifies an exact artifact and reaches installed or later | A clone, asset download, catalog view, or maintainer run |
 | Successful voice turn | A non-maintainer report reaches `turn.done: completed`; synthetic and credential-backed paths remain separate | That audio used a physical device or live Qwen unless directly reported |
-| External star | The repository's public star count at a dated snapshot | An install, active user, or successful turn |
+| External star | The repository's public non-owner stargazer count at a dated snapshot | The owner's star, an install, active user, or successful turn |
 | Test report | A non-maintainer submits a complete sanitized report that maintainers can review | A comment, reaction, or incomplete private anecdote |
 | Contributor | A non-maintainer-authored change is merged while preserving authorship | A fork, draft, or maintainer rewrite of someone else's idea |
 | Setup abandonment | A tester records the last successful stage and stopping point | Failure of later stages that were never attempted |
