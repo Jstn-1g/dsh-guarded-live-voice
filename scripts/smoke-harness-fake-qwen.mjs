@@ -55,6 +55,10 @@ const ALPHA_TARGETS = new Map([
     commit: '0a53fb55bea101816fa226bb964ae2bed71c343b',
     tag: 'dsh-v0.1.2-alpha.2',
   }],
+  ['0.1.2-alpha.3', {
+    commit: 'dd6322d604e00eec1ba5e0c8541159906a21094a',
+    tag: 'dsh-v0.1.2-alpha.3',
+  }],
 ])
 const EXPECTED_ALPHA_VERSION = process.env.DSH_VOICE_SMOKE_ALPHA_VERSION ?? '0.1.2-alpha.1'
 const alphaTarget = ALPHA_TARGETS.get(EXPECTED_ALPHA_VERSION)
@@ -92,8 +96,10 @@ const runAlphaAuth = shouldRunAlphaAuth({
   supportedAlphaVersion: EXPECTED_ALPHA_VERSION,
 })
 if (runSyntheticDemo
-  && (!runAlphaAuth || runBrowserBfcache || EXPECTED_ALPHA_VERSION !== '0.1.2-alpha.2')) {
-  throw new Error('synthetic demo smoke requires exact authenticated Harness alpha.2 without BFCache mode')
+  && (!runAlphaAuth
+    || runBrowserBfcache
+    || !['0.1.2-alpha.2', '0.1.2-alpha.3'].includes(EXPECTED_ALPHA_VERSION))) {
+  throw new Error('synthetic demo smoke requires an explicitly supported authenticated Harness alpha without BFCache mode')
 }
 const runOfficialSource = runBrowserBfcache || runAlphaAuth
 const PROFILE = runOfficialSource ? 'web' : 'dsh-live-voice-fake-qwen-smoke'
