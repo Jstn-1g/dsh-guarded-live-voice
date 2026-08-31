@@ -3,6 +3,15 @@ import { satisfies } from 'semver'
 import { describe, expect, it } from 'vitest'
 
 describe('preview package metadata', () => {
+  it('enforces the release-age quarantine without waiving alpha.3', async () => {
+    const workspace = await readFile(
+      new URL('../../pnpm-workspace.yaml', import.meta.url),
+      'utf8',
+    )
+    expect(workspace).toMatch(/^minimumReleaseAge: 1440$/mu)
+    expect(workspace).not.toContain('0.1.2-alpha.3')
+  })
+
   it('declares the DSH Live Voice browser face without claiming full duplex', async () => {
     const manifest = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8')) as {
       description?: string
