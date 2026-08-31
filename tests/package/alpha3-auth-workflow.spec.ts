@@ -118,9 +118,14 @@ describe('exact-alpha.3 current-main authenticated Web proof workflow', () => {
 
     expect(source.match(/run: pnpm install --frozen-lockfile/gu)).toHaveLength(2)
     expect(source).toContain('run: pnpm run check')
+    expect(source).toContain('- name: Build the exact official Harness profile')
+    expect(source).toMatch(/working-directory: harness\s+run: pnpm run build:official/u)
     expect(source).toContain('DSH_HARNESS_ROOT: ${{ github.workspace }}/harness')
     expect(source).toContain("DSH_VOICE_SMOKE_INSTALL_ONLINE: '1'")
     expect(source).toContain('pnpm run smoke:harness:alpha3-auth | tee "$raw"')
+    expect(source.indexOf('run: pnpm run build:official')).toBeLessThan(
+      source.indexOf('pnpm run smoke:harness:alpha3-auth | tee "$raw"'),
+    )
     expect(source).not.toContain('pnpm run smoke:harness:alpha2-auth | tee "$raw"')
     expect(source).not.toContain('2>&1')
   })

@@ -53,6 +53,10 @@ jobs:
         working-directory: plugin
         run: pnpm run check
 
+      - name: Build the exact official Harness profile
+        working-directory: harness
+        run: pnpm run build:official
+
       - name: Run the authenticated alpha.3 fake-provider composition
         working-directory: plugin
         env:
