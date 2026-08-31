@@ -204,6 +204,13 @@ persistence backend. Live Voice does not use it, but SQLite-backed profiles
 must be exported using their older DSH version before upgrading. Do not point
 an older DSH build at a Session store already written by a newer release.
 
+The regular development lock remains on alpha.2 while the newly published
+alpha.3 package cohort completes this repository's 24-hour minimum-release-age
+quarantine. The exact alpha.3 compatibility claim comes from the isolated
+source-built composition above and the explicit peer ranges, not from weakening
+that supply-chain policy. A later lockfile update must pass the same policy and
+full check before it can replace the development cohort.
+
 The disclosure flow is user-visible, but it is not cryptographic proof that a
 human accepted it. The one-shot challenge proves control of that local client
 connection only. Loopback, Host, Origin, and `Sec-Fetch-Site` checks mitigate

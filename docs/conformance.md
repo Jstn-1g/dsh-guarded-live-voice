@@ -201,6 +201,13 @@ persistence backend; export an SQLite-backed profile with its older DSH version
 before upgrading, and never downgrade a Session store in place after a newer
 release has written it.
 
+The ordinary development lock intentionally remains on alpha.2 until the
+freshly published alpha.3 packages clear this repository's 24-hour
+minimum-release-age policy. The source-built alpha.3 smokes use the exact
+upstream commit in a separate checkout, so this quarantine does not broaden or
+weaken the compatibility claim. Promoting alpha.3 into the development lock is
+a later, separately verified supply-chain update.
+
 ## Controlled Chromium raw-unload smoke
 
 `pnpm run smoke:browser:unload` builds the current client bundle and starts a

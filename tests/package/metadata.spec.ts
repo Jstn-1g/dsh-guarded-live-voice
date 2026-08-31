@@ -44,7 +44,7 @@ describe('preview package metadata', () => {
     expect(manifest.dsh?.client?.inject).not.toContain('@deepseek-ai/dsh-client-runtime')
     expect(peers).not.toHaveProperty('@deepseek-ai/dsh-client-runtime')
     expect(manifest.devDependencies).not.toHaveProperty('@deepseek-ai/dsh-client-runtime')
-    expect(manifest.devDependencies?.['@deepseek-ai/dsh-client-store']).toBe('0.1.2-alpha.3')
+    expect(manifest.devDependencies?.['@deepseek-ai/dsh-client-store']).toBe('0.1.2-alpha.2')
     const expectedDshRange = '^0.1.1-rc.1 || 0.1.2-alpha.1 || 0.1.2-alpha.2 || 0.1.2-alpha.3'
     expect(peers['@deepseek-ai/dsh-client-ui-renderer']).toBe(expectedDshRange)
     for (const [name, range] of Object.entries(peers)) {
