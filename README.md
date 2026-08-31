@@ -4,11 +4,10 @@
 
 [![CI](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/ci.yml/badge.svg)](https://github.com/Jstn-1g/dsh-live-voice/actions/workflows/ci.yml)
 
-[Preview release](https://github.com/Jstn-1g/dsh-live-voice/releases/tag/v0.3.0-preview.5)
-· [Contributing](CONTRIBUTING.md)
-· [Testing guide](TESTING.md)
-· [No-secret tester task](https://github.com/Jstn-1g/dsh-live-voice/issues/19)
-· [Release gate](https://github.com/Jstn-1g/dsh-live-voice/issues/5)
+[Try it in two minutes](#two-minute-synthetic-test)
+· [Watch the 24-second demo](assets/dsh-live-voice-synthetic-demo.mp4)
+· [Report the stopping point](https://github.com/Jstn-1g/dsh-live-voice/issues/58)
+· [Preview release](https://github.com/Jstn-1g/dsh-live-voice/releases/tag/v0.3.0-preview.5)
 
 DSH Live Voice is built for one bounded voice turn: speak, hear returned audio,
 review both transcripts, and decide whether to place your own words into the
@@ -51,6 +50,11 @@ current draft; it does not submit it.
 ```sh
 dsh plugin --profile web remove dsh-live-voice
 ```
+
+Tried it? [Report the last stage that worked](https://github.com/Jstn-1g/dsh-live-voice/issues/58).
+A failure is as useful as a pass. Do not post recordings, credentials, real
+transcripts, Session IDs, workspace content, tokens, cookies, or identifying
+logs.
 
 ## Current status
 
